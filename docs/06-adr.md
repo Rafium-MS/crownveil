@@ -134,3 +134,22 @@ o autor de conteúdo controla o comportamento da IA pela ordem das opções; a
 escolha só faz efeito no mês seguinte, então a UI esconde decisões já
 respondidas. Uma IA que avalie as opções fica para depois e pode substituir a
 regra "primeira opção" sem mudar o formato de conteúdo.
+
+## ADR-0012 — Fé e magia como recursos com perda, gastos em ritos
+
+**Contexto:** a visão pede fé e magia integradas às variáveis existentes, sem
+mini-jogos. Sem IA que gaste, recursos acumuláveis lotavam o teto em poucos
+anos e perdiam sentido.
+
+**Decisão:** fé e magia são inteiros por facção (0–1000), gerados pelas
+províncias (clero e desenvolvimento) e por modificadores, com perda de 2% do
+estoque ao mês. Fé reduz e magia aumenta o alvo de descontentamento (até 5
+pontos cada). O gasto acontece em ritos definidos em `content/rites.ron`, com o
+mesmo vocabulário de condições e efeitos dos eventos e executados por
+`Command::PerformRite`. `sim` expõe `check_rite`/`RiteBlock` para a UI explicar
+indisponibilidade; o texto em português fica em `content::rite_block_text`.
+
+**Consequências:** facções se diferenciam pelo perfil (Orem rica em fé, reinos
+desenvolvidos com mais magia) e o jogador tem motivo para gastar. Ritos novos
+não exigem código. A IA ainda não realiza ritos; quando houver IA de facção, ela
+usa os mesmos comandos.

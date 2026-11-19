@@ -58,7 +58,7 @@ divertido (ou pelo menos testado) headless.
 - [x] Modificadores temporários e permanentes em províncias e facções
 - [x] Crônica de eventos na UI, comando `events` no REPL e log na CLI
 - [x] Primeiros presságios e crises (cometa, crise de sucessão, Véu rasgado)
-- [ ] Fé/magia como recursos e modificadores
+- [x] Fé/magia como recursos, modificadores e ritos (`content/rites.ron`)
 - [x] Eventos com escolhas do jogador (decisões pendentes, IA e prazo)
 - [ ] Crises encadeadas com consequências de longo prazo
 

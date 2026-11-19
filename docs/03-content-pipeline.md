@@ -38,6 +38,8 @@ Conteúdo do jogo vive em arquivos de dados (RON) e é carregado pelo crate
 | `treasury` | inteiro | Tesouro inicial |
 | `legitimacy` | inteiro | Legitimidade inicial (0–100) |
 | `tax_rate` | inteiro | Imposto inicial (0–100); padrão 20 |
+| `faith` | inteiro | Fé inicial (0–1000); padrão 0 |
+| `mana` | inteiro | Magia inicial (0–1000); padrão 0 |
 | `army` | inteiro | Soldados iniciais; padrão 0 |
 | `court_upkeep` | inteiro | Custo mensal da corte; padrão 20 |
 
@@ -132,17 +134,52 @@ pensando nisso.
 Condições: `UnrestAtLeast(n)`, `UnrestBelow(n)`, `DevelopmentAtLeast(n)`,
 `DevelopmentBelow(n)`, `ClergyAtLeast(n)`, `Famine`, `NoFamine` (só
 província); `LegitimacyAtLeast(n)`, `LegitimacyBelow(n)`, `TreasuryAtLeast(n)`,
-`TreasuryBelow(n)`, `TaxAtLeast(n)`, `AtWar`, `AtPeace`, `HasModifier("k")`,
+`TreasuryBelow(n)`, `TaxAtLeast(n)`, `FaithAtLeast(n)`, `FaithBelow(n)`,
+`ManaAtLeast(n)`, `ManaBelow(n)`, `AtWar`, `AtPeace`, `HasModifier("k")`,
 `LacksModifier("k")`.
 
 Efeitos: `Unrest(n)`, `Development(n)`, `Population(pct)`, `Legitimacy(n)`,
-`Treasury(n)`, `Army(n)`, `AddModifier("k", Some(meses))` (ou `None` para
-permanente), `RemoveModifier("k")`.
+`Treasury(n)`, `Army(n)`, `Faith(n)`, `Mana(n)`, `AddModifier("k", Some(meses))`
+(ou `None` para permanente), `RemoveModifier("k")`.
 
 O loader rejeita chaves duplicadas, modificadores desconhecidos, condições de
 província em eventos de facção, `chance` fora de 0–1000, cooldown negativo,
 duração não positiva, `Population` abaixo de −100, eventos sem efeitos nem
 opções, eventos com uma única opção e opções sem `label`.
+
+## Ritos
+
+`content/rites.ron` define as ações pagas do jogador. É carregado com
+`load_rites(source, world)` **depois** de `load_events`, porque ritos
+referenciam modificadores pela chave.
+
+```ron
+(
+    rites: [
+        (
+            key: "selar_o_veu",
+            name: "Selar o Véu",
+            description: "Um círculo de magos costura a fenda com fios de luz.",
+            scope: Province,
+            mana_cost: 120,
+            cooldown_months: 12,
+            conditions: [HasModifier("veu_rasgado")],
+            effects: [RemoveModifier("veu_rasgado"), Unrest(-5)],
+        ),
+    ],
+)
+```
+
+| Campo | Descrição |
+| --- | --- |
+| `key`, `name`, `description` | Identificador único e textos exibidos |
+| `scope` | `Province` (província da própria facção) ou `Faction` |
+| `faith_cost`, `mana_cost`, `gold_cost` | Custos; padrão 0, nunca negativos |
+| `cooldown_months` | Meses até repetir no mesmo alvo; padrão 0 |
+| `conditions` | Mesmas condições dos eventos (opcional) |
+| `effects` | Mesmos efeitos dos eventos; pelo menos um |
+
+Modificadores também aceitam `faith` e `mana` (por mês).
 
 ### Diplomacia
 

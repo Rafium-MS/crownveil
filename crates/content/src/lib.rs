@@ -3,7 +3,7 @@ use std::fmt;
 
 use crownveil_sim::{
     Condition, Effect, EventDef, EventOption, EventScope, Faction, ModifierDef, ModifierEffects,
-    Pops, Province, ProvinceId, World,
+    Pops, Province, ProvinceId, RiteBlock, RiteDef, World,
 };
 use serde::Deserialize;
 
@@ -24,6 +24,10 @@ pub struct FactionData {
     pub army: i64,
     #[serde(default = "default_court_upkeep")]
     pub court_upkeep: i64,
+    #[serde(default)]
+    pub faith: i64,
+    #[serde(default)]
+    pub mana: i64,
 }
 
 fn default_tax_rate() -> i64 {
@@ -106,6 +110,10 @@ pub struct ModifierData {
     pub food_pct: i64,
     #[serde(default)]
     pub legitimacy: i64,
+    #[serde(default)]
+    pub faith: i64,
+    #[serde(default)]
+    pub mana: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -124,6 +132,31 @@ pub struct EventData {
     pub effects: Vec<EffectData>,
     #[serde(default)]
     pub options: Vec<OptionData>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RitesData {
+    pub rites: Vec<RiteData>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RiteData {
+    pub key: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    pub scope: EventScope,
+    #[serde(default)]
+    pub faith_cost: i64,
+    #[serde(default)]
+    pub mana_cost: i64,
+    #[serde(default)]
+    pub gold_cost: i64,
+    #[serde(default)]
+    pub cooldown_months: i64,
+    #[serde(default)]
+    pub conditions: Vec<ConditionData>,
+    pub effects: Vec<EffectData>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -152,6 +185,10 @@ pub enum ConditionData {
     TreasuryAtLeast(i64),
     TreasuryBelow(i64),
     TaxAtLeast(i64),
+    FaithAtLeast(i64),
+    FaithBelow(i64),
+    ManaAtLeast(i64),
+    ManaBelow(i64),
     AtWar,
     AtPeace,
     HasModifier(String),
@@ -167,6 +204,8 @@ pub enum EffectData {
     Legitimacy(i64),
     Treasury(i64),
     Army(i64),
+    Faith(i64),
+    Mana(i64),
     AddModifier(String, Option<i64>),
     RemoveModifier(String),
 }
@@ -194,14 +233,14 @@ impl fmt::Display for LoadError {
             }
             LoadError::UnknownModifier { event, modifier } => write!(
                 formatter,
-                "evento '{event}' referencia modificador desconhecido '{modifier}'"
+                "'{event}' referencia modificador desconhecido '{modifier}'"
             ),
             LoadError::ProvinceConditionInFactionEvent { event } => write!(
                 formatter,
-                "evento '{event}' é de facção mas usa condição exclusiva de província"
+                "'{event}' é de facção mas usa condição exclusiva de província"
             ),
             LoadError::InvalidValue { event, reason } => {
-                write!(formatter, "evento '{event}': {reason}")
+                write!(formatter, "'{event}': {reason}")
             }
         }
     }
@@ -229,7 +268,8 @@ pub fn load_world_with_map(source: &str, seed: u64) -> Result<(World, MapLayout)
             )
             .with_tax(faction.tax_rate)
             .with_army(faction.army)
-            .with_court_upkeep(faction.court_upkeep),
+            .with_court_upkeep(faction.court_upkeep)
+            .with_resources(faction.faith, faction.mana),
         );
     }
 
@@ -288,6 +328,8 @@ pub fn load_events(source: &str, world: World) -> Result<World, LoadError> {
                 income_pct: modifier.income_pct,
                 food_pct: modifier.food_pct,
                 legitimacy: modifier.legitimacy,
+                faith: modifier.faith,
+                mana: modifier.mana,
             },
         });
     }
@@ -347,34 +389,7 @@ fn convert_event(
             })
     };
 
-    let mut conditions = Vec::with_capacity(event.conditions.len());
-    for condition in &event.conditions {
-        let condition = match condition {
-            ConditionData::UnrestAtLeast(v) => Condition::UnrestAtLeast(*v),
-            ConditionData::UnrestBelow(v) => Condition::UnrestBelow(*v),
-            ConditionData::DevelopmentAtLeast(v) => Condition::DevelopmentAtLeast(*v),
-            ConditionData::DevelopmentBelow(v) => Condition::DevelopmentBelow(*v),
-            ConditionData::ClergyAtLeast(v) => Condition::ClergyAtLeast(*v),
-            ConditionData::Famine => Condition::Famine,
-            ConditionData::NoFamine => Condition::NoFamine,
-            ConditionData::LegitimacyAtLeast(v) => Condition::LegitimacyAtLeast(*v),
-            ConditionData::LegitimacyBelow(v) => Condition::LegitimacyBelow(*v),
-            ConditionData::TreasuryAtLeast(v) => Condition::TreasuryAtLeast(*v),
-            ConditionData::TreasuryBelow(v) => Condition::TreasuryBelow(*v),
-            ConditionData::TaxAtLeast(v) => Condition::TaxAtLeast(*v),
-            ConditionData::AtWar => Condition::AtWar,
-            ConditionData::AtPeace => Condition::AtPeace,
-            ConditionData::HasModifier(key) => Condition::HasModifier(modifier(key)?),
-            ConditionData::LacksModifier(key) => Condition::LacksModifier(modifier(key)?),
-        };
-        if event.scope == EventScope::Faction && condition.is_province_only() {
-            return Err(LoadError::ProvinceConditionInFactionEvent {
-                event: event.key.clone(),
-            });
-        }
-        conditions.push(condition);
-    }
-
+    let conditions = convert_conditions(&event.conditions, event.scope, &event.key, &modifier)?;
     let effects = convert_effects(&event.effects, &event.key, &modifier)?;
     let mut options = Vec::with_capacity(event.options.len());
     for option in &event.options {
@@ -395,6 +410,121 @@ fn convert_event(
         effects,
         options,
     })
+}
+
+fn convert_conditions(
+    conditions: &[ConditionData],
+    scope: EventScope,
+    key: &str,
+    modifier: &impl Fn(&String) -> Result<usize, LoadError>,
+) -> Result<Vec<Condition>, LoadError> {
+    let mut converted = Vec::with_capacity(conditions.len());
+    for condition in conditions {
+        let condition = match condition {
+            ConditionData::UnrestAtLeast(v) => Condition::UnrestAtLeast(*v),
+            ConditionData::UnrestBelow(v) => Condition::UnrestBelow(*v),
+            ConditionData::DevelopmentAtLeast(v) => Condition::DevelopmentAtLeast(*v),
+            ConditionData::DevelopmentBelow(v) => Condition::DevelopmentBelow(*v),
+            ConditionData::ClergyAtLeast(v) => Condition::ClergyAtLeast(*v),
+            ConditionData::Famine => Condition::Famine,
+            ConditionData::NoFamine => Condition::NoFamine,
+            ConditionData::LegitimacyAtLeast(v) => Condition::LegitimacyAtLeast(*v),
+            ConditionData::LegitimacyBelow(v) => Condition::LegitimacyBelow(*v),
+            ConditionData::TreasuryAtLeast(v) => Condition::TreasuryAtLeast(*v),
+            ConditionData::TreasuryBelow(v) => Condition::TreasuryBelow(*v),
+            ConditionData::TaxAtLeast(v) => Condition::TaxAtLeast(*v),
+            ConditionData::FaithAtLeast(v) => Condition::FaithAtLeast(*v),
+            ConditionData::FaithBelow(v) => Condition::FaithBelow(*v),
+            ConditionData::ManaAtLeast(v) => Condition::ManaAtLeast(*v),
+            ConditionData::ManaBelow(v) => Condition::ManaBelow(*v),
+            ConditionData::AtWar => Condition::AtWar,
+            ConditionData::AtPeace => Condition::AtPeace,
+            ConditionData::HasModifier(key) => Condition::HasModifier(modifier(key)?),
+            ConditionData::LacksModifier(key) => Condition::LacksModifier(modifier(key)?),
+        };
+        if scope == EventScope::Faction && condition.is_province_only() {
+            return Err(LoadError::ProvinceConditionInFactionEvent {
+                event: key.to_string(),
+            });
+        }
+        converted.push(condition);
+    }
+    Ok(converted)
+}
+
+/// Player-facing text for why a rite is unavailable. Lives here, next to the
+/// other Portuguese content, so the REPL and the client say the same thing.
+pub fn rite_block_text(block: RiteBlock) -> String {
+    match block {
+        RiteBlock::UnknownRite => "rito desconhecido".to_string(),
+        RiteBlock::WrongScope => "alvo errado para este rito".to_string(),
+        RiteBlock::NotOwner => "a província precisa ser sua".to_string(),
+        RiteBlock::NotEnoughFaith => "fé insuficiente".to_string(),
+        RiteBlock::NotEnoughMana => "magia insuficiente".to_string(),
+        RiteBlock::NotEnoughGold => "ouro insuficiente".to_string(),
+        RiteBlock::OnCooldown { months_left } => format!("disponível em {months_left} meses"),
+        RiteBlock::ConditionsUnmet => "condições não atendidas".to_string(),
+    }
+}
+
+/// Installs rites from `source` into `world`. Must run after `load_events`,
+/// because rites reference modifiers by key.
+pub fn load_rites(source: &str, world: World) -> Result<World, LoadError> {
+    let data: RitesData = ron::from_str(source).map_err(LoadError::Parse)?;
+    let modifier_ids: BTreeMap<String, usize> = world
+        .modifiers
+        .iter()
+        .enumerate()
+        .map(|(id, def)| (def.key.clone(), id))
+        .collect();
+
+    let mut keys = BTreeMap::new();
+    let mut rites = Vec::with_capacity(data.rites.len());
+    for rite in data.rites {
+        if keys.insert(rite.key.clone(), ()).is_some() {
+            return Err(LoadError::DuplicateKey {
+                kind: "rito",
+                key: rite.key,
+            });
+        }
+        let invalid = |reason| LoadError::InvalidValue {
+            event: rite.key.clone(),
+            reason,
+        };
+        if rite.faith_cost < 0 || rite.mana_cost < 0 || rite.gold_cost < 0 {
+            return Err(invalid("custos não podem ser negativos"));
+        }
+        if rite.cooldown_months < 0 {
+            return Err(invalid("cooldown_months não pode ser negativo"));
+        }
+        if rite.effects.is_empty() {
+            return Err(invalid("rito precisa de ao menos um efeito"));
+        }
+
+        let modifier = |key: &String| {
+            modifier_ids
+                .get(key)
+                .copied()
+                .ok_or_else(|| LoadError::UnknownModifier {
+                    event: rite.key.clone(),
+                    modifier: key.clone(),
+                })
+        };
+        rites.push(RiteDef {
+            conditions: convert_conditions(&rite.conditions, rite.scope, &rite.key, &modifier)?,
+            effects: convert_effects(&rite.effects, &rite.key, &modifier)?,
+            key: rite.key.clone(),
+            name: rite.name.clone(),
+            description: rite.description.clone(),
+            scope: rite.scope,
+            faith_cost: rite.faith_cost,
+            mana_cost: rite.mana_cost,
+            gold_cost: rite.gold_cost,
+            cooldown_months: rite.cooldown_months,
+        });
+    }
+
+    Ok(world.with_rites(rites))
 }
 
 fn convert_effects(
@@ -421,6 +551,8 @@ fn convert_effects(
             EffectData::Legitimacy(v) => Effect::Legitimacy(*v),
             EffectData::Treasury(v) => Effect::Treasury(*v),
             EffectData::Army(v) => Effect::Army(*v),
+            EffectData::Faith(v) => Effect::Faith(*v),
+            EffectData::Mana(v) => Effect::Mana(*v),
             EffectData::AddModifier(key, months) => {
                 if months.is_some_and(|months| months <= 0) {
                     return Err(invalid("duração de modificador deve ser positiva"));
@@ -442,6 +574,55 @@ mod tests {
 
     const WORLD: &str = include_str!("../../../content/world.ron");
     const EVENTS: &str = include_str!("../../../content/events.ron");
+    const RITES: &str = include_str!("../../../content/rites.ron");
+
+    fn rites_world(rites: &str) -> Result<World, LoadError> {
+        load_rites(rites, events_world(EVENTS).unwrap())
+    }
+
+    #[test]
+    fn bundled_rites_load() {
+        let world = rites_world(RITES).expect("os ritos embutidos devem carregar");
+        assert!(world.rites.len() >= 6);
+        assert!(world.rites.iter().any(|rite| rite.faith_cost > 0));
+        assert!(world.rites.iter().any(|rite| rite.mana_cost > 0));
+    }
+
+    #[test]
+    fn bundled_world_has_starting_faith() {
+        let world = load_world(WORLD, 1).unwrap();
+        assert!(world.factions.iter().any(|faction| faction.faith > 0));
+    }
+
+    #[test]
+    fn rite_with_unknown_modifier_is_rejected() {
+        let source = r#"(rites: [(key: "r", name: "R", scope: Province, faith_cost: 1,
+                                 effects: [RemoveModifier("nada")])])"#;
+        assert!(matches!(
+            rites_world(source),
+            Err(LoadError::UnknownModifier { .. })
+        ));
+    }
+
+    #[test]
+    fn rite_with_negative_cost_is_rejected() {
+        let source = r#"(rites: [(key: "r", name: "R", scope: Faction, mana_cost: -5,
+                                 effects: [Legitimacy(1)])])"#;
+        assert!(matches!(
+            rites_world(source),
+            Err(LoadError::InvalidValue { .. })
+        ));
+    }
+
+    #[test]
+    fn faction_rite_with_province_condition_is_rejected() {
+        let source = r#"(rites: [(key: "r", name: "R", scope: Faction,
+                                 conditions: [Famine], effects: [Legitimacy(1)])])"#;
+        assert!(matches!(
+            rites_world(source),
+            Err(LoadError::ProvinceConditionInFactionEvent { .. })
+        ));
+    }
 
     fn events_world(events: &str) -> Result<World, LoadError> {
         load_events(events, load_world(WORLD, 1).unwrap())

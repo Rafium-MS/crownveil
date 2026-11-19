@@ -16,7 +16,8 @@ mais uma interface gráfica em `egui`/`eframe` com pausa, velocidades, painéis
 de facção/província, comandos básicos e mapa hexagonal 2D com overlays,
 seleção, tooltips, zoom e pan. Eventos e modificadores orientados a dados
 (pestes, colheitas, revoltas, presságios) aparecem na Crônica da UI; vários
-deles são dilemas em que o jogador escolhe a resposta.
+deles são dilemas em que o jogador escolhe a resposta. Fé e magia são recursos
+das facções, gastos em ritos (curar a peste, conjurar chuva, selar o Véu…).
 
 ## Requisitos
 
@@ -47,7 +48,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 No REPL, os comandos são: `status`, `provinces`, `tax`, `recruit`, `disband`,
 `war`, `peace`, `attack`, `wars`, `events`, `decisions`, `choose`, `player`,
-`step`, `explain`, `help` e `quit`. O REPL joga com a facção 0; `step` para
+`rites`, `rite`, `step`, `explain`, `help` e `quit`. O REPL joga com a facção 0; `step` para
 quando surge uma decisão, e `choose <decisão> <opção>` responde. Use
 `step N` para aplicar os comandos enfileirados e avançar `N` meses.
 
@@ -56,7 +57,9 @@ jogável e de província, além de botões para imposto, recrutamento, guerra, p
 e ataque. No mapa: clique para selecionar, arraste para mover, use o scroll para
 zoom e troque a camada entre **Dono**, **Descontentamento** e **População**.
 Quando um evento exige uma escolha da sua facção, o jogo pausa e abre uma
-janela de decisão; passe o mouse sobre as opções para ver os efeitos.
+janela de decisão; passe o mouse sobre as opções para ver os efeitos. A seção
+**Ritos** (painel da direita) lista os ritos com custo; ritos locais agem na
+província selecionada.
 
 ## Estrutura do workspace
 
@@ -66,7 +69,7 @@ janela de decisão; passe o mouse sobre as opções para ver os efeitos.
 | `crates/content` | Carrega conteúdo (RON) e monta um `World` da simulação. |
 | `crates/cli` | Composition root headless: roda a simulação e imprime relatórios. |
 | `crates/client` | Cliente gráfico em `egui`/`eframe`: lê o `World` e emite comandos. |
-| `content/` | Dados do jogo: facções, províncias, modificadores e eventos. |
+| `content/` | Dados do jogo: facções, províncias, modificadores, eventos e ritos. |
 | `docs/` | Documentação de visão, arquitetura, design e roadmap. |
 
 ## Documentação

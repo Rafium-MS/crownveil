@@ -20,6 +20,8 @@ consequência às decisões, não para estarem balanceadas.
 - `EventDef`: evento com escopo, chance, cooldown, condições e efeitos;
   `event_log` guarda os últimos 200 eventos ocorridos.
 - `PendingDecision`: escolha aguardando o jogador (`World.player`), com prazo.
+- `Faction.faith` / `Faction.mana`: fé e magia (0–1000).
+- `RiteDef`: rito com escopo, custos, cooldown, condições e efeitos.
 
 Todas as quantias usam `i64`. Não há ponto flutuante na simulação.
 
@@ -40,6 +42,7 @@ valores limitados (imposto é `clamp`ado em 0–100).
 | `Attack { faction, province }` | Tenta tomar uma província inimiga em guerra |
 | `SetPlayer { faction }` | Define a facção do jogador (`None` = todas com a IA) |
 | `ChooseOption { faction, decision, option }` | Resolve uma decisão pendente da facção |
+| `PerformRite { faction, rite, province }` | Realiza um rito (`province: None` para ritos de facção) |
 
 O jogador emite comandos pelo REPL (`crownveil-repl`). A UI futura emitirá os
 mesmos comandos.
@@ -51,16 +54,20 @@ mesmos comandos.
    `year += 1`.
 3. **Para cada província**, com base no dono:
    1. calcular receita (imposto) e despesa e somar ao tesouro da facção;
+      acumular a fé e a magia geradas (aplicadas depois do laço);
    2. calcular o alvo de descontentamento e mover 10% da distância;
    3. crescer as populações respeitando a capacidade de alimento;
    4. aplicar fome se a população exceder a capacidade.
 4. **Efeitos de guerra**: atrito militar, perda de legitimidade e relação −100.
-5. **Cobrar custos de facção**: corte + manutenção do exército.
-6. **Atualizar legitimidade** (convergência para 50 + penalidades).
-7. **Tick da diplomacia**: contar tréguas e aproximar relações de 0 em paz.
-8. **Choques aleatórios** de descontentamento.
-9. **Modificadores**: decrementa a duração e remove os que chegaram a 0.
-10. **Eventos**: primeiro resolve, com a primeira opção, as decisões cujo prazo
+5. **Fé e magia**: perda de 2% do estoque, soma da geração do mês e dos
+   modificadores de facção, limite em 0–1000.
+6. **Cobrar custos de facção**: corte + manutenção do exército.
+7. **Atualizar legitimidade** (convergência para 50 + penalidades).
+8. **Tick da diplomacia**: contar tréguas e aproximar relações de 0 em paz.
+9. **Choques aleatórios** de descontentamento.
+10. **Modificadores**: decrementa a duração e remove os que chegaram a 0;
+    descarta cooldowns de ritos vencidos.
+11. **Eventos**: primeiro resolve, com a primeira opção, as decisões cujo prazo
     venceu. Depois, para cada evento (em ordem) e cada alvo (em ordem), se não
     estiver em cooldown e todas as condições valerem, rola `rng(0..999) <
     chance`; se passar, aplica os efeitos, registra cooldown e então: sem
@@ -110,7 +117,9 @@ alvo = clamp(
   + tax_rate/5
   + (se fome { 10 } senão se densidade > 90 { (densidade - 90)/2 } senão { 0 })
   + (se a facção está em guerra { 8 } senão { 0 })
-  + modificadores.unrest (província + facção dona),
+  + modificadores.unrest (província + facção dona)
+  - min(fé/100, 5)
+  + min(magia/200, 5),
   0, 100
 )
 ```
@@ -151,6 +160,29 @@ se tesouro < -500 ou tax_rate > 50: legitimidade -= 1
 legitimidade = clamp(legitimidade, 0, 100)
 ```
 
+## Fé e magia
+
+```
+fe_provincia    = clergy/100 + modificadores.faith (da província)
+magia_provincia = development/25 + modificadores.mana (da província)
+perda           = estoque/50                          // 2% ao mês
+estoque         = clamp(estoque - perda + soma das províncias
+                        + modificadores da facção, 0, 1000)
+```
+
+Sem gastos, o estoque tende a `renda mensal * 50`. Fé acalma (até −5 no alvo
+de descontentamento); magia acumulada assusta (até +5). Os dois pagam ritos.
+
+## Ritos
+
+Um rito é pago com fé, magia e/ou ouro e aplica efeitos do mesmo vocabulário
+dos eventos. Ritos de província exigem uma província da própria facção; ritos
+de facção agem na própria facção. `check_rite` diz se o rito está disponível e,
+se não, por quê (`RiteBlock`): escopo errado, alvo alheio, recursos
+insuficientes, cooldown ou condições. `PerformRite` verifica de novo no tick,
+paga os custos, aplica os efeitos e registra o cooldown por rito e alvo. Um rito
+feito no mês *m* com cooldown *n* pode ser repetido no mês *m+n*.
+
 ## Modificadores
 
 Efeitos somam entre todos os modificadores ativos:
@@ -161,6 +193,7 @@ Efeitos somam entre todos os modificadores ativos:
 | `income_pct` | província e facção | `receita = receita * (100 + pct) / 100` |
 | `food_pct` | só província | `capacidade = capacidade * (100 + pct) / 100` |
 | `legitimacy` | só facção | soma à legitimidade a cada mês |
+| `faith` / `mana` | província (para a dona) e facção | soma à fé/magia a cada mês |
 
 Percentuais nunca invertem o sinal (`100 + pct` é limitado a 0). Reaplicar um
 modificador ativo não acumula: renova a duração (fica a maior).

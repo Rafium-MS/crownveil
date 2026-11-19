@@ -1,0 +1,98 @@
+// Ritos: ações do jogador pagas com fé, magia e/ou ouro.
+//
+// scope: Province (numa província da própria facção) ou Faction (na facção).
+// Custos (faith_cost, mana_cost, gold_cost) são opcionais, padrão 0.
+// cooldown_months: meses até poder repetir no mesmo alvo (padrão 0).
+// conditions/effects: mesmo vocabulário dos eventos (ver events.ron).
+(
+    rites: [
+        (
+            key: "missa_acao_de_gracas",
+            name: "Missa de Ação de Graças",
+            description: "Sinos em todo o reino; o clero agradece aos céus e o povo se acalma.",
+            scope: Faction,
+            faith_cost: 150,
+            cooldown_months: 24,
+            effects: [Unrest(-10)],
+        ),
+        (
+            key: "coroacao_sagrada",
+            name: "Coroação Sagrada",
+            description: "O sumo sacerdote unge o soberano diante da corte reunida.",
+            scope: Faction,
+            faith_cost: 250,
+            gold_cost: 300,
+            cooldown_months: 120,
+            effects: [Legitimacy(12)],
+        ),
+        (
+            key: "pregacao",
+            name: "Missão de Pregação",
+            description: "Frades percorrem as aldeias levando a palavra e o consolo.",
+            scope: Province,
+            faith_cost: 60,
+            cooldown_months: 24,
+            effects: [AddModifier("fervor_religioso", Some(24))],
+        ),
+        (
+            key: "cura_dos_enfermos",
+            name: "Cura dos Enfermos",
+            description: "Sacerdotes e curandeiros impõem as mãos sobre os doentes.",
+            scope: Province,
+            faith_cost: 100,
+            cooldown_months: 12,
+            conditions: [HasModifier("peste_cinzenta")],
+            effects: [RemoveModifier("peste_cinzenta"), Unrest(-5)],
+        ),
+        (
+            key: "bencao_das_colheitas",
+            name: "Bênção das Colheitas",
+            description: "Clero e druidas abençoam juntos os campos antes do plantio.",
+            scope: Province,
+            faith_cost: 40,
+            mana_cost: 30,
+            cooldown_months: 36,
+            conditions: [LacksModifier("seca")],
+            effects: [AddModifier("colheita_farta", Some(12))],
+        ),
+        (
+            key: "chuva_conjurada",
+            name: "Conjurar Chuva",
+            description: "Magos do tempo chamam nuvens sobre a terra rachada.",
+            scope: Province,
+            mana_cost: 80,
+            cooldown_months: 12,
+            conditions: [HasModifier("seca")],
+            effects: [RemoveModifier("seca")],
+        ),
+        (
+            key: "selar_o_veu",
+            name: "Selar o Véu",
+            description: "Um círculo de magos costura a fenda com fios de luz.",
+            scope: Province,
+            mana_cost: 120,
+            cooldown_months: 12,
+            conditions: [HasModifier("veu_rasgado")],
+            effects: [RemoveModifier("veu_rasgado"), Unrest(-5)],
+        ),
+        (
+            key: "ritual_de_prosperidade",
+            name: "Ritual de Prosperidade",
+            description: "Runas de abundância são gravadas nas pedras do mercado.",
+            scope: Province,
+            mana_cost: 150,
+            gold_cost: 100,
+            cooldown_months: 60,
+            effects: [Development(2)],
+        ),
+        (
+            key: "legiao_conjurada",
+            name: "Legião Conjurada",
+            description: "Soldados de pedra e névoa se erguem para servir a coroa.",
+            scope: Faction,
+            mana_cost: 250,
+            cooldown_months: 36,
+            effects: [Army(250), Unrest(3)],
+        ),
+    ],
+)

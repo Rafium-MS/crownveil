@@ -2,6 +2,7 @@ pub mod command;
 pub mod diplomacy;
 pub mod event;
 pub mod modifier;
+pub mod rite;
 pub mod rng;
 pub mod rules;
 pub mod tick;
@@ -14,6 +15,7 @@ pub use event::{
     EventOption, EventRecord, EventScope, EventTarget, PendingDecision,
 };
 pub use modifier::{ActiveModifier, ModifierDef, ModifierEffects, ModifierId};
+pub use rite::{check_rite, rite_target, RiteBlock, RiteCooldown, RiteDef, RiteId};
 pub use rng::Rng;
 pub use rules::{food_capacity, garrison, UnrestBreakdown, UnrestExplanation};
 pub use tick::tick_month;

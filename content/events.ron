@@ -45,6 +45,7 @@
             name: "Santuário Abençoado",
             unrest: -8,
             income_pct: 5,
+            faith: 3,
         ),
         (
             key: "veu_rasgado",
@@ -52,6 +53,7 @@
             unrest: 6,
             income_pct: 15,
             food_pct: -10,
+            mana: 8,
         ),
         (
             key: "cometa_rubro",
@@ -81,13 +83,28 @@
             key: "arcanistas",
             name: "Colégio de Arcanistas",
             unrest: 2,
-            income_pct: 20,
+            income_pct: 10,
+            mana: 5,
         ),
         (
             key: "fervor_religioso",
             name: "Fervor Religioso",
             unrest: -6,
             income_pct: -5,
+            faith: 2,
+        ),
+        (
+            key: "catedral",
+            name: "Grande Catedral",
+            unrest: -3,
+            legitimacy: 1,
+            faith: 4,
+        ),
+        (
+            key: "magia_proibida",
+            name: "Magia Proibida",
+            unrest: -2,
+            mana: -3,
         ),
         (
             key: "corte_dividida",
@@ -120,7 +137,7 @@
             options: [
                 (
                     label: "Rezar e esperar que passe",
-                    effects: [Population(-4), Unrest(5)],
+                    effects: [Population(-4), Unrest(5), Faith(20)],
                 ),
                 (
                     label: "Fechar os portões (quarentena)",
@@ -128,7 +145,7 @@
                 ),
                 (
                     label: "Culpar os feiticeiros",
-                    effects: [Population(-4), Unrest(-8), Legitimacy(-3)],
+                    effects: [Population(-4), Unrest(-8), Legitimacy(-3), Mana(-50)],
                 ),
             ],
         ),
@@ -291,6 +308,49 @@
             cooldown_months: 180,
             conditions: [LegitimacyAtLeast(65), AtPeace, TreasuryAtLeast(500)],
             effects: [Treasury(-100), AddModifier("era_dourada", Some(36))],
+        ),
+        (
+            key: "surto_arcano",
+            title: "Surto Arcano",
+            description: "Magia demais acumulada transborda: luzes nos poços, gado falando, crianças que flutuam.",
+            scope: Faction,
+            chance: 30,
+            cooldown_months: 36,
+            conditions: [ManaAtLeast(500)],
+            effects: [Unrest(5)],
+            options: [
+                (
+                    label: "Canalizar o excesso para o tesouro",
+                    effects: [Mana(-250), Treasury(300)],
+                ),
+                (
+                    label: "Celebrar um festival de luzes",
+                    effects: [Mana(-200), Unrest(-8)],
+                ),
+                (
+                    label: "Proibir a prática de magia",
+                    effects: [Mana(-300), Faith(30), AddModifier("magia_proibida", Some(36))],
+                ),
+            ],
+        ),
+        (
+            key: "concilio_dos_bispos",
+            title: "Concílio dos Bispos",
+            description: "Os bispos se reúnem e pedem à coroa uma catedral digna da fé do reino.",
+            scope: Faction,
+            chance: 15,
+            cooldown_months: 120,
+            conditions: [FaithAtLeast(600), LacksModifier("catedral")],
+            options: [
+                (
+                    label: "Financiar a Grande Catedral",
+                    effects: [Faith(-300), Treasury(-300), AddModifier("catedral", None)],
+                ),
+                (
+                    label: "Agradecer e adiar",
+                    effects: [Faith(-100), Legitimacy(-2)],
+                ),
+            ],
         ),
     ],
 )

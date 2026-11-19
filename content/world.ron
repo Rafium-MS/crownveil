@@ -7,6 +7,8 @@
             tax_rate: 25,
             army: 0,
             court_upkeep: 20,
+            faith: 50,
+            mana: 30,
         ),
         (
             name: "Corte de Vhalen",
@@ -15,6 +17,8 @@
             tax_rate: 35,
             army: 300,
             court_upkeep: 15,
+            faith: 20,
+            mana: 120,
         ),
         (
             name: "Sacro Dominio de Orem",
@@ -23,6 +27,8 @@
             tax_rate: 15,
             army: 0,
             court_upkeep: 25,
+            faith: 200,
+            mana: 0,
         ),
     ],
     provinces: [

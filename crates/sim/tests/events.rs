@@ -17,6 +17,7 @@ fn modifiers() -> Vec<ModifierDef> {
                 income_pct: 50,
                 food_pct: 25,
                 legitimacy: 2,
+                ..Default::default()
             },
         },
         ModifierDef {
@@ -27,6 +28,7 @@ fn modifiers() -> Vec<ModifierDef> {
                 income_pct: -50,
                 food_pct: -100,
                 legitimacy: -1,
+                ..Default::default()
             },
         },
     ]

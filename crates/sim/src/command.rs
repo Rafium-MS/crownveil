@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::event::DecisionId;
+use crate::rite::RiteId;
 use crate::world::{FactionId, ProvinceId};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -37,5 +38,11 @@ pub enum Command {
         faction: FactionId,
         decision: DecisionId,
         option: usize,
+    },
+    /// `province: None` targets the faction itself (faction-scope rites).
+    PerformRite {
+        faction: FactionId,
+        rite: RiteId,
+        province: Option<ProvinceId>,
     },
 }

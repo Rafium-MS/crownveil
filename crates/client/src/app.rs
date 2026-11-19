@@ -1,15 +1,18 @@
-use crownveil_content::{load_events, load_world_with_map, MapLayout, MapPosition};
+use crownveil_content::{
+    load_events, load_rites, load_world_with_map, rite_block_text, MapLayout, MapPosition,
+};
 use std::collections::BTreeSet;
 
 use crownveil_sim::event::absolute_month;
 use crownveil_sim::{
-    food_capacity, ActiveModifier, Command, DecisionId, Effect, EventTarget, FactionId, Province,
-    ProvinceId, World,
+    check_rite, food_capacity, rite_target, ActiveModifier, Command, DecisionId, Effect,
+    EventScope, EventTarget, FactionId, Province, ProvinceId, World,
 };
 use eframe::egui;
 
 const WORLD_SOURCE: &str = include_str!("../../../content/world.ron");
 const EVENTS_SOURCE: &str = include_str!("../../../content/events.ron");
+const RITES_SOURCE: &str = include_str!("../../../content/rites.ron");
 const CHRONICLE_ENTRIES: usize = 12;
 const SECONDS_PER_MONTH: f64 = 0.5;
 const MAX_MONTHS_PER_FRAME: u32 = 24;
@@ -169,7 +172,9 @@ pub struct CrownveilApp {
 impl CrownveilApp {
     pub fn new() -> Self {
         let loaded = load_world_with_map(WORLD_SOURCE, 1).and_then(|(world, map_layout)| {
-            load_events(EVENTS_SOURCE, world).map(|world| (world, map_layout))
+            load_events(EVENTS_SOURCE, world)
+                .and_then(|world| load_rites(RITES_SOURCE, world))
+                .map(|world| (world, map_layout))
         });
         match loaded {
             Ok((world, map_layout)) => Self::with_world_and_map(world, map_layout),
@@ -413,7 +418,7 @@ impl CrownveilApp {
                 ui.heading("Facções");
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     for index in 0..self.world.factions.len() {
-                        let (id, name, treasury, legitimacy, tax_rate, army) = {
+                        let (id, name, treasury, legitimacy, tax_rate, army, faith, mana) = {
                             let faction = &self.world.factions[index];
                             (
                                 faction.id,
@@ -422,6 +427,8 @@ impl CrownveilApp {
                                 faction.legitimacy,
                                 faction.tax_rate,
                                 faction.army,
+                                faction.faith,
+                                faction.mana,
                             )
                         };
                         let is_player = id == self.player;
@@ -440,6 +447,7 @@ impl CrownveilApp {
                             ui.label(format!("Legitimidade: {legitimacy}"));
                             ui.label(format!("Imposto: {tax_rate}%"));
                             ui.label(format!("Exército: {army}"));
+                            ui.label(format!("Fé: {faith}   Magia: {mana}"));
                             ui.label(format!("Províncias: {provinces}"));
                             ui.label(format!("Guerras: {wars}"));
                             modifier_list(ui, &self.world, &modifiers);
@@ -721,13 +729,15 @@ impl CrownveilApp {
             let breakdown = explanation.breakdown;
             ui.label(format!("Alvo de descontentamento: {}", explanation.target));
             ui.label(format!(
-                "Causas: legitimidade +{}, tesouro +{}, imposto +{}, comida +{}, guerra +{}, modificadores {:+}",
+                "Causas: legitimidade +{}, tesouro +{}, imposto +{}, comida +{}, guerra +{}, modificadores {:+}, fé {:+}, magia {:+}",
                 breakdown.legitimacy,
                 breakdown.treasury,
                 breakdown.tax,
                 breakdown.food,
                 breakdown.war,
-                breakdown.modifiers
+                breakdown.modifiers,
+                breakdown.faith,
+                breakdown.magic
             ));
         }
 
@@ -755,8 +765,77 @@ impl CrownveilApp {
                 ui.separator();
                 self.province_details(ui);
                 ui.separator();
+                self.rites_panel(ui);
+                ui.separator();
                 self.chronicle(ui);
             });
+    }
+
+    fn rites_panel(&mut self, ui: &mut egui::Ui) {
+        let Some(player) = self.world.player else {
+            return;
+        };
+        let mut performed = None;
+        egui::CollapsingHeader::new("Ritos")
+            .default_open(false)
+            .show(ui, |ui| {
+                let faction = &self.world.factions[player];
+                ui.label(format!("Fé {} · Magia {}", faction.faith, faction.mana));
+                let province = self.selected_province;
+                for (id, rite) in self.world.rites.iter().enumerate() {
+                    let target = match rite.scope {
+                        EventScope::Faction => Some(rite_target(player, None)),
+                        EventScope::Province => province.map(|p| rite_target(player, Some(p))),
+                    };
+                    let status = target.map(|target| check_rite(&self.world, player, id, target));
+                    let where_ = match rite.scope {
+                        EventScope::Faction => "reino",
+                        EventScope::Province => "província selecionada",
+                    };
+                    let mut hover = format!(
+                        "{}\nAlvo: {where_}\nCusto: {}\nEfeitos: {}",
+                        rite.description,
+                        describe_cost(rite.faith_cost, rite.mana_cost, rite.gold_cost),
+                        describe_effect_list(&self.world, &rite.effects)
+                    );
+                    match status {
+                        Some(Err(block)) => {
+                            hover.push_str(&format!("\nIndisponível: {}", rite_block_text(block)));
+                        }
+                        None => hover.push_str("\nSelecione uma província sua no mapa."),
+                        Some(Ok(())) => {}
+                    }
+                    let button = ui.add_enabled(
+                        matches!(status, Some(Ok(()))),
+                        egui::Button::new(format!(
+                            "{} ({})",
+                            rite.name,
+                            describe_cost(rite.faith_cost, rite.mana_cost, rite.gold_cost)
+                        )),
+                    );
+                    if button
+                        .on_hover_text(hover.as_str())
+                        .on_disabled_hover_text(hover)
+                        .clicked()
+                    {
+                        performed = Some((id, target));
+                    }
+                }
+            });
+
+        if let Some((rite, Some(target))) = performed {
+            let province = match target {
+                EventTarget::Province(id) => Some(id),
+                EventTarget::Faction(_) => None,
+            };
+            self.world.queue_command(Command::PerformRite {
+                faction: player,
+                rite,
+                province,
+            });
+            let name = self.world.rites[rite].name.clone();
+            self.status = format!("Rito '{name}' enfileirado para o próximo mês.");
+        }
     }
 
     fn chronicle(&mut self, ui: &mut egui::Ui) {
@@ -865,12 +944,27 @@ fn describe_effects(active: &ActiveModifier) -> String {
         (effects.income_pct, "receita", "%"),
         (effects.food_pct, "comida", "%"),
         (effects.legitimacy, "legitimidade/mês", ""),
+        (effects.faith, "fé/mês", ""),
+        (effects.mana, "magia/mês", ""),
     ]
     .iter()
     .filter(|(value, _, _)| *value != 0)
     .map(|(value, label, suffix)| format!("{label} {value:+}{suffix}"))
     .collect();
     parts.join(", ")
+}
+
+fn describe_cost(faith: i64, mana: i64, gold: i64) -> String {
+    let parts: Vec<String> = [(faith, "fé"), (mana, "magia"), (gold, "ouro")]
+        .iter()
+        .filter(|(value, _)| *value > 0)
+        .map(|(value, label)| format!("{value} {label}"))
+        .collect();
+    if parts.is_empty() {
+        "grátis".to_string()
+    } else {
+        parts.join(", ")
+    }
 }
 
 fn describe_effect_list(world: &World, effects: &[Effect]) -> String {
@@ -898,6 +992,8 @@ fn describe_effect(world: &World, effect: &Effect) -> String {
         Effect::Legitimacy(value) => format!("legitimidade {value:+}"),
         Effect::Treasury(value) => format!("tesouro {value:+}"),
         Effect::Army(value) => format!("exército {value:+}"),
+        Effect::Faith(value) => format!("fé {value:+}"),
+        Effect::Mana(value) => format!("magia {value:+}"),
         Effect::AddModifier { modifier, months } => match months {
             Some(months) => format!("+ {} ({months} meses)", modifier_name(*modifier)),
             None => format!("+ {} (permanente)", modifier_name(*modifier)),
@@ -1049,6 +1145,18 @@ mod tests {
         app.sync_player();
         app.step_once();
         assert_eq!(app.world.player, Some(2));
+    }
+
+    #[test]
+    fn bundled_content_includes_rites() {
+        let app = CrownveilApp::new();
+        assert!(!app.world.rites.is_empty());
+    }
+
+    #[test]
+    fn rite_costs_are_described() {
+        assert_eq!(describe_cost(40, 30, 0), "40 fé, 30 magia");
+        assert_eq!(describe_cost(0, 0, 0), "grátis");
     }
 
     #[test]

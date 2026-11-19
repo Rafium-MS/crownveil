@@ -3,6 +3,15 @@ use crate::world::{Faction, Province};
 
 pub const MONTHS_PER_YEAR: u32 = 12;
 pub const FOOD_PER_DEVELOPMENT: i64 = 400;
+pub const MAX_RESOURCE: i64 = 1000;
+/// Faith and magic lose `stock / RESOURCE_DECAY_DIVISOR` per month, so stocks
+/// settle near `monthly income * RESOURCE_DECAY_DIVISOR` unless spent.
+pub const RESOURCE_DECAY_DIVISOR: i64 = 50;
+pub const CLERGY_PER_FAITH: i64 = 100;
+pub const DEVELOPMENT_PER_MANA: i64 = 25;
+pub const FAITH_PER_UNREST_POINT: i64 = 100;
+pub const MANA_PER_UNREST_POINT: i64 = 200;
+pub const MAX_RESOURCE_UNREST: i64 = 5;
 
 pub fn food_capacity(province: &Province) -> i64 {
     let base = province.development.max(0) * FOOD_PER_DEVELOPMENT;
@@ -36,6 +45,22 @@ pub fn province_upkeep(province: &Province) -> i64 {
     province.pops.clergy / 100 + province.pops.noble / 100
 }
 
+pub fn province_faith(province: &Province) -> i64 {
+    province.pops.clergy / CLERGY_PER_FAITH + total_effects(&province.modifiers).faith
+}
+
+pub fn province_mana(province: &Province) -> i64 {
+    province.development.max(0) / DEVELOPMENT_PER_MANA + total_effects(&province.modifiers).mana
+}
+
+pub fn faction_faith_bonus(faction: &Faction) -> i64 {
+    total_effects(&faction.modifiers).faith
+}
+
+pub fn faction_mana_bonus(faction: &Faction) -> i64 {
+    total_effects(&faction.modifiers).mana
+}
+
 pub fn army_upkeep(faction: &Faction) -> i64 {
     faction.army / 10
 }
@@ -53,11 +78,22 @@ pub struct UnrestBreakdown {
     pub war: i64,
     /// Sum of province and owner modifiers; may be negative.
     pub modifiers: i64,
+    /// Owner's faith calms the people; zero or negative.
+    pub faith: i64,
+    /// Hoarded magic frightens the people; zero or positive.
+    pub magic: i64,
 }
 
 impl UnrestBreakdown {
     pub fn target(&self) -> i64 {
-        (self.legitimacy + self.treasury + self.tax + self.food + self.war + self.modifiers)
+        (self.legitimacy
+            + self.treasury
+            + self.tax
+            + self.food
+            + self.war
+            + self.modifiers
+            + self.faith
+            + self.magic)
             .clamp(0, 100)
     }
 }
@@ -87,6 +123,9 @@ pub fn unrest_breakdown(province: &Province, faction: &Faction, at_war: bool) ->
     let modifiers =
         total_effects(&province.modifiers).unrest + total_effects(&faction.modifiers).unrest;
 
+    let faith = -(faction.faith.max(0) / FAITH_PER_UNREST_POINT).min(MAX_RESOURCE_UNREST);
+    let magic = (faction.mana.max(0) / MANA_PER_UNREST_POINT).min(MAX_RESOURCE_UNREST);
+
     UnrestBreakdown {
         legitimacy,
         treasury,
@@ -94,6 +133,8 @@ pub fn unrest_breakdown(province: &Province, faction: &Faction, at_war: bool) ->
         food,
         war,
         modifiers,
+        faith,
+        magic,
     }
 }
 

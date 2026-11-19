@@ -4,6 +4,7 @@ use crate::command::Command;
 use crate::diplomacy::Diplomacy;
 use crate::event::{EventCooldown, EventDef, EventId, EventRecord, EventTarget, PendingDecision};
 use crate::modifier::{ActiveModifier, ModifierDef, ModifierId};
+use crate::rite::{RiteCooldown, RiteDef, RiteId};
 use crate::rng::Rng;
 use crate::rules::{self, UnrestExplanation};
 
@@ -84,6 +85,10 @@ pub struct Faction {
     pub army: i64,
     pub court_upkeep: i64,
     #[serde(default)]
+    pub faith: i64,
+    #[serde(default)]
+    pub mana: i64,
+    #[serde(default)]
     pub modifiers: Vec<ActiveModifier>,
 }
 
@@ -97,6 +102,8 @@ impl Faction {
             tax_rate: 20,
             army: 0,
             court_upkeep: 20,
+            faith: 0,
+            mana: 0,
             modifiers: Vec::new(),
         }
     }
@@ -108,6 +115,12 @@ impl Faction {
 
     pub fn with_army(mut self, army: i64) -> Self {
         self.army = army.max(0);
+        self
+    }
+
+    pub fn with_resources(mut self, faith: i64, mana: i64) -> Self {
+        self.faith = faith.clamp(0, crate::rules::MAX_RESOURCE);
+        self.mana = mana.clamp(0, crate::rules::MAX_RESOURCE);
         self
     }
 
@@ -143,6 +156,10 @@ pub struct World {
     pub pending_decisions: Vec<PendingDecision>,
     #[serde(default)]
     pub next_decision_id: u64,
+    #[serde(default)]
+    pub rites: Vec<RiteDef>,
+    #[serde(default)]
+    pub rite_cooldowns: Vec<RiteCooldown>,
 }
 
 impl World {
@@ -164,6 +181,8 @@ impl World {
             player: None,
             pending_decisions: Vec::new(),
             next_decision_id: 0,
+            rites: Vec::new(),
+            rite_cooldowns: Vec::new(),
         }
     }
 
@@ -171,6 +190,15 @@ impl World {
         self.modifiers = modifiers;
         self.events = events;
         self
+    }
+
+    pub fn with_rites(mut self, rites: Vec<RiteDef>) -> Self {
+        self.rites = rites;
+        self
+    }
+
+    pub fn rite_def(&self, id: RiteId) -> Option<&RiteDef> {
+        self.rites.get(id)
     }
 
     pub fn with_player(mut self, player: Option<FactionId>) -> Self {

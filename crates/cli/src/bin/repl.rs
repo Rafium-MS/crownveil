@@ -1,11 +1,14 @@
 use std::io::{self, BufRead, Write};
 
-use crownveil_content::{load_events, load_world};
+use crownveil_content::{load_events, load_rites, load_world, rite_block_text};
 use crownveil_sim::event::absolute_month;
-use crownveil_sim::{food_capacity, ActiveModifier, Command, FactionId, World};
+use crownveil_sim::{
+    check_rite, food_capacity, rite_target, ActiveModifier, Command, EventScope, FactionId, World,
+};
 
 const WORLD_SOURCE: &str = include_str!("../../../../content/world.ron");
 const EVENTS_SOURCE: &str = include_str!("../../../../content/events.ron");
+const RITES_SOURCE: &str = include_str!("../../../../content/rites.ron");
 const DEFAULT_EVENT_COUNT: usize = 10;
 const DEFAULT_PLAYER: FactionId = 0;
 
@@ -15,14 +18,16 @@ fn main() {
         .and_then(|value| value.parse().ok())
         .unwrap_or(1);
 
-    let mut world =
-        match load_world(WORLD_SOURCE, seed).and_then(|world| load_events(EVENTS_SOURCE, world)) {
-            Ok(world) => world.with_player(Some(DEFAULT_PLAYER)),
-            Err(error) => {
-                eprintln!("erro ao carregar conteúdo: {error}");
-                std::process::exit(1);
-            }
-        };
+    let mut world = match load_world(WORLD_SOURCE, seed)
+        .and_then(|world| load_events(EVENTS_SOURCE, world))
+        .and_then(|world| load_rites(RITES_SOURCE, world))
+    {
+        Ok(world) => world.with_player(Some(DEFAULT_PLAYER)),
+        Err(error) => {
+            eprintln!("erro ao carregar conteúdo: {error}");
+            std::process::exit(1);
+        }
+    };
 
     println!("Crownveil REPL — seed {seed}, jogando com a facção {DEFAULT_PLAYER}");
     print_help();
@@ -113,6 +118,30 @@ fn main() {
                 _ => println!("uso: attack <facção> <província>"),
             },
             "wars" => print_wars(&world),
+            "rites" => print_rites(&world, parts.get(1).and_then(|value| value.parse().ok())),
+            "rite" => match (
+                world.player,
+                parts.get(1).and_then(|value| value.parse::<usize>().ok()),
+            ) {
+                (None, _) => println!("nenhuma facção está sob controle do jogador"),
+                (Some(faction), Some(rite)) => {
+                    let province = parts.get(2).and_then(|value| value.parse().ok());
+                    let target = rite_target(faction, province);
+                    match check_rite(&world, faction, rite, target) {
+                        Ok(()) => {
+                            world.queue_command(Command::PerformRite {
+                                faction,
+                                rite,
+                                province,
+                            });
+                            let name = world.rite_def(rite).map_or("?", |def| def.name.as_str());
+                            println!("rito '{name}' enfileirado para o próximo tick");
+                        }
+                        Err(block) => println!("não é possível: {}", rite_block_text(block)),
+                    }
+                }
+                _ => println!("uso: rite <rito> [província]"),
+            },
             "events" => {
                 let count = parts
                     .get(1)
@@ -200,6 +229,8 @@ fn print_help() {
     println!("  explain <província>    explica o descontentamento e mostra modificadores");
     println!("  events [n]             mostra os últimos n eventos (padrão: 10)");
     println!("  decisions              lista decisões pendentes do jogador");
+    println!("  rites [província]      lista ritos e se estão disponíveis");
+    println!("  rite <rito> [prov]     realiza um rito (província só para ritos locais)");
     println!("  choose <dec> <opção>   escolhe uma opção (aplicada no próximo tick)");
     println!("  player [facção|none]   mostra ou troca a facção do jogador");
     println!("  help                   mostra esta ajuda");
@@ -210,13 +241,15 @@ fn print_status(world: &World) {
     println!("Ano {} / mês {}", world.year, world.month);
     for faction in &world.factions {
         println!(
-            "  [{}] {:<24} tesouro {:>8}  leg {:>3}  imposto {:>3}%  exército {:>5}  guerras {}",
+            "  [{}] {:<24} tesouro {:>8}  leg {:>3}  imposto {:>3}%  exército {:>5}  fé {:>4}  magia {:>4}  guerras {}",
             faction.id,
             faction.name,
             faction.treasury,
             faction.legitimacy,
             faction.tax_rate,
             faction.army,
+            faction.faith,
+            faction.mana,
             world.diplomacy.war_count_for(faction.id)
         );
     }
@@ -290,7 +323,10 @@ fn print_explanation(world: &World, province_id: usize) {
         explanation.breakdown.food,
         explanation.breakdown.war
     );
-    println!("  modificadores {:+}", explanation.breakdown.modifiers);
+    println!(
+        "  modificadores {:+}, fé {:+}, magia {:+}",
+        explanation.breakdown.modifiers, explanation.breakdown.faith, explanation.breakdown.magic
+    );
     print_modifiers(world, "  província", &province.modifiers);
     if let Some(owner) = world.faction(province.owner) {
         print_modifiers(world, "  facção", &owner.modifiers);
@@ -311,6 +347,28 @@ fn print_modifiers(world: &World, label: &str, modifiers: &[ActiveModifier]) {
         println!(
             "{label}: {name} ({duration}) — descontentamento {:+}, receita {:+}%, comida {:+}%, legitimidade {:+}/mês",
             effects.unrest, effects.income_pct, effects.food_pct, effects.legitimacy
+        );
+    }
+}
+
+fn print_rites(world: &World, province: Option<usize>) {
+    let Some(faction) = world.player else {
+        println!("nenhuma facção está sob controle do jogador");
+        return;
+    };
+    for (id, rite) in world.rites.iter().enumerate() {
+        let (scope, target) = match rite.scope {
+            EventScope::Faction => ("reino", Some(rite_target(faction, None))),
+            EventScope::Province => ("província", province.map(|p| rite_target(faction, Some(p)))),
+        };
+        let status = match target.map(|target| check_rite(world, faction, id, target)) {
+            Some(Ok(())) => "disponível".to_string(),
+            Some(Err(block)) => rite_block_text(block),
+            None => "informe a província: rites <província>".to_string(),
+        };
+        println!(
+            "  [{id}] {} ({scope}) — fé {}, magia {}, ouro {} — {status}",
+            rite.name, rite.faith_cost, rite.mana_cost, rite.gold_cost
         );
     }
 }

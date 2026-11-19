@@ -36,6 +36,10 @@ pub enum Condition {
     TreasuryAtLeast(i64),
     TreasuryBelow(i64),
     TaxAtLeast(i64),
+    FaithAtLeast(i64),
+    FaithBelow(i64),
+    ManaAtLeast(i64),
+    ManaBelow(i64),
     AtWar,
     AtPeace,
     HasModifier(ModifierId),
@@ -69,6 +73,8 @@ pub enum Effect {
     Legitimacy(i64),
     Treasury(i64),
     Army(i64),
+    Faith(i64),
+    Mana(i64),
     AddModifier {
         modifier: ModifierId,
         months: Option<i64>,
@@ -311,7 +317,7 @@ fn on_cooldown(world: &World, event: EventId, target: EventTarget) -> bool {
         .any(|cooldown| cooldown.event == event && cooldown.target == target)
 }
 
-fn target_faction(world: &World, target: EventTarget) -> Option<FactionId> {
+pub(crate) fn target_faction(world: &World, target: EventTarget) -> Option<FactionId> {
     match target {
         EventTarget::Province(id) => world.provinces.get(id).map(|province| province.owner),
         EventTarget::Faction(id) => Some(id),
@@ -339,6 +345,10 @@ pub fn condition_holds(world: &World, target: EventTarget, condition: &Condition
         Condition::TreasuryAtLeast(value) => faction.is_some_and(|f| f.treasury >= *value),
         Condition::TreasuryBelow(value) => faction.is_some_and(|f| f.treasury < *value),
         Condition::TaxAtLeast(value) => faction.is_some_and(|f| f.tax_rate >= *value),
+        Condition::FaithAtLeast(value) => faction.is_some_and(|f| f.faith >= *value),
+        Condition::FaithBelow(value) => faction.is_some_and(|f| f.faith < *value),
+        Condition::ManaAtLeast(value) => faction.is_some_and(|f| f.mana >= *value),
+        Condition::ManaBelow(value) => faction.is_some_and(|f| f.mana < *value),
         Condition::AtWar => faction_id.is_some_and(|id| world.is_at_war(id)),
         Condition::AtPeace => faction_id.is_some_and(|id| !world.is_at_war(id)),
         Condition::HasModifier(modifier) => {
@@ -369,7 +379,7 @@ fn affected_provinces(world: &World, target: EventTarget) -> Vec<ProvinceId> {
     }
 }
 
-fn apply_effect(world: &mut World, target: EventTarget, effect: &Effect) {
+pub(crate) fn apply_effect(world: &mut World, target: EventTarget, effect: &Effect) {
     match effect {
         Effect::Unrest(delta) => {
             for id in affected_provinces(world, target) {
@@ -404,6 +414,16 @@ fn apply_effect(world: &mut World, target: EventTarget, effect: &Effect) {
         Effect::Treasury(delta) => {
             if let Some(faction) = faction_mut(world, target) {
                 faction.treasury += delta;
+            }
+        }
+        Effect::Faith(delta) => {
+            if let Some(faction) = faction_mut(world, target) {
+                faction.faith = (faction.faith + delta).clamp(0, rules::MAX_RESOURCE);
+            }
+        }
+        Effect::Mana(delta) => {
+            if let Some(faction) = faction_mut(world, target) {
+                faction.mana = (faction.mana + delta).clamp(0, rules::MAX_RESOURCE);
             }
         }
         Effect::Army(delta) => {

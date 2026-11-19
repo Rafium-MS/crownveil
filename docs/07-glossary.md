@@ -12,6 +12,10 @@
 | **Descontentamento (unrest)** | Insatisfação local (0–100); alta reduz crescimento. |
 | **Legitimidade** | Aceitação do governo pela população (0–100); afeta o descontentamento. |
 | **Tesouro** | Recurso monetário da facção, em unidades inteiras. |
+| **Fé** | Recurso da facção (0–1000) vindo do clero; acalma as províncias e paga ritos. |
+| **Magia** | Recurso da facção (0–1000) vindo do desenvolvimento; paga ritos, mas acumulada assusta o povo. |
+| **Rito** | Ação do jogador paga com fé, magia e/ou ouro, definida em `content/rites.ron`. |
+| **Evento** | Acontecimento orientado a dados (condições + chance + efeitos), às vezes com escolhas. |
 | **Modificador** | Bônus/malus temporário aplicado a uma entidade (magia, fé, clima etc.). |
 | **Seed** | Semente do RNG; garante reprodutibilidade da simulação. |
 | **Determinismo** | Mesma seed + mesmas entradas ⇒ mesmo resultado, sempre. |

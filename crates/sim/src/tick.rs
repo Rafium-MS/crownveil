@@ -1,6 +1,7 @@
 use crate::command::Command;
 use crate::diplomacy::DEFAULT_TRUCE_MONTHS;
 use crate::event;
+use crate::rite;
 use crate::rules::{self, MONTHS_PER_YEAR};
 use crate::world::{FactionId, Province, ProvinceId, World};
 
@@ -13,6 +14,9 @@ pub fn tick_month(world: &mut World) {
 
     let province_count = world.provinces.len();
     let faction_count = world.factions.len();
+    // Faith/mana gains are applied after the loop so that every province sees
+    // the same faith and magic levels when computing unrest.
+    let mut gains = vec![(0, 0); faction_count];
 
     for index in 0..province_count {
         let owner = world.provinces[index].owner;
@@ -23,6 +27,8 @@ pub fn tick_month(world: &mut World) {
         let income = rules::province_income(&world.provinces[index], &world.factions[owner]);
         let upkeep = rules::province_upkeep(&world.provinces[index]);
         world.factions[owner].treasury += income - upkeep;
+        gains[owner].0 += rules::province_faith(&world.provinces[index]);
+        gains[owner].1 += rules::province_mana(&world.provinces[index]);
 
         let at_war = world.diplomacy.war_count_for(owner) > 0;
         let breakdown =
@@ -35,11 +41,13 @@ pub fn tick_month(world: &mut World) {
     }
 
     apply_war_effects(world);
+    settle_resources(world, &gains);
     pay_faction_costs(world);
     update_legitimacy(world);
     world.diplomacy.tick();
     apply_random_shocks(world);
     event::tick_all_modifiers(world);
+    rite::expire_cooldowns(world);
     event::fire_events(world);
 }
 
@@ -108,6 +116,14 @@ fn apply_commands(world: &mut World) {
                 option,
             } => {
                 event::choose_option(world, faction, decision, option);
+            }
+            Command::PerformRite {
+                faction,
+                rite: id,
+                province,
+            } => {
+                let _ =
+                    rite::perform_rite(world, faction, id, rite::rite_target(faction, province));
             }
         }
     }
@@ -288,6 +304,17 @@ fn clamp_populations(province: &mut Province) {
     province.pops.burgher = province.pops.burgher.max(0);
     province.pops.noble = province.pops.noble.max(0);
     province.pops.clergy = province.pops.clergy.max(0);
+}
+
+fn settle_resources(world: &mut World, gains: &[(i64, i64)]) {
+    for (faction, &(faith, mana)) in world.factions.iter_mut().zip(gains) {
+        let faith_decay = faction.faith / rules::RESOURCE_DECAY_DIVISOR;
+        let mana_decay = faction.mana / rules::RESOURCE_DECAY_DIVISOR;
+        faction.faith = (faction.faith - faith_decay + faith + rules::faction_faith_bonus(faction))
+            .clamp(0, rules::MAX_RESOURCE);
+        faction.mana = (faction.mana - mana_decay + mana + rules::faction_mana_bonus(faction))
+            .clamp(0, rules::MAX_RESOURCE);
+    }
 }
 
 fn pay_faction_costs(world: &mut World) {

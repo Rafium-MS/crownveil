@@ -14,6 +14,12 @@ pub struct ModifierEffects {
     pub food_pct: i64,
     /// Monthly legitimacy change. Only meaningful on factions.
     pub legitimacy: i64,
+    /// Monthly faith for the owner (province) or the faction itself.
+    #[serde(default)]
+    pub faith: i64,
+    /// Monthly magic for the owner (province) or the faction itself.
+    #[serde(default)]
+    pub mana: i64,
 }
 
 impl ModifierEffects {
@@ -23,6 +29,8 @@ impl ModifierEffects {
             income_pct: self.income_pct + other.income_pct,
             food_pct: self.food_pct + other.food_pct,
             legitimacy: self.legitimacy + other.legitimacy,
+            faith: self.faith + other.faith,
+            mana: self.mana + other.mana,
         }
     }
 }
