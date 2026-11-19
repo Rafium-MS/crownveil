@@ -98,3 +98,22 @@ cliente converte para tela, desenha e faz hit-testing por centro mais próximo.
 **Consequências:** mapa legível e barato de implementar; posições são dados
 editáveis; sem adjacências ou formas irregulares por enquanto. Migrar para
 polígonos geográficos depois não muda as regras da simulação.
+
+## ADR-0010 — Eventos e modificadores como dados
+
+**Contexto:** o M5 exige pestes, presságios e crises sem codificar cada um à
+mão, mantendo determinismo e legibilidade das causas.
+
+**Decisão:** `sim` define um vocabulário fechado de condições (`Condition`) e
+efeitos (`Effect`) e um tipo `ModifierEffects` aditivo. O conteúdo descreve
+eventos e modificadores em RON, referenciando modificadores por chave; o
+`content` valida e converte para índices. Eventos são avaliados no fim do tick,
+em ordem de índice, e só consomem RNG quando o alvo passa nas condições e no
+cooldown. Um modificador ativo copia os efeitos da definição para que as regras
+funcionem a partir da província/facção isoladamente.
+
+**Consequências:** novos eventos não exigem código, desde que caibam no
+vocabulário; ampliar o vocabulário exige mudar `sim` e o espelho em `content`.
+A decomposição de descontentamento ganha a parcela `modificadores`. Mudar a
+ordem ou a chance dos eventos altera as partidas de uma seed, mas não o
+determinismo.

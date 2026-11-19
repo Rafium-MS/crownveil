@@ -10,10 +10,12 @@ mundo. O tempo corre em tempo real, mas pode ser pausado e acelerado.
 
 ## Status
 
-Protótipo jogável (**M4**): simulação determinística em ticks mensais com
-economia, comida/fome, diplomacia e guerra, mais uma interface gráfica em
-`egui`/`eframe` com pausa, velocidades, painéis de facção/província, comandos
-básicos e mapa hexagonal 2D com overlays, seleção, tooltips, zoom e pan.
+Protótipo jogável (**M4**, com o **M5** em andamento): simulação
+determinística em ticks mensais com economia, comida/fome, diplomacia e guerra,
+mais uma interface gráfica em `egui`/`eframe` com pausa, velocidades, painéis
+de facção/província, comandos básicos e mapa hexagonal 2D com overlays,
+seleção, tooltips, zoom e pan. Eventos e modificadores orientados a dados
+(pestes, colheitas, revoltas, presságios) aparecem na Crônica da UI.
 
 ## Requisitos
 
@@ -43,7 +45,8 @@ cargo clippy --workspace --all-targets -- -D warnings
 ```
 
 No REPL, os comandos são: `status`, `provinces`, `tax`, `recruit`, `disband`,
-`war`, `peace`, `attack`, `wars`, `step`, `explain`, `help` e `quit`. Use
+`war`, `peace`, `attack`, `wars`, `events`, `step`, `explain`, `help` e
+`quit`. Use
 `step N` para aplicar os comandos enfileirados e avançar `N` meses.
 
 Na UI: **Continuar/Pausar**, **+1 mês**, velocidades 1x–8x, seleção de facção
@@ -59,7 +62,7 @@ zoom e troque a camada entre **Dono**, **Descontentamento** e **População**.
 | `crates/content` | Carrega conteúdo (RON) e monta um `World` da simulação. |
 | `crates/cli` | Composition root headless: roda a simulação e imprime relatórios. |
 | `crates/client` | Cliente gráfico em `egui`/`eframe`: lê o `World` e emite comandos. |
-| `content/` | Dados do jogo: facções, províncias, e futuramente eventos. |
+| `content/` | Dados do jogo: facções, províncias, modificadores e eventos. |
 | `docs/` | Documentação de visão, arquitetura, design e roadmap. |
 
 ## Documentação

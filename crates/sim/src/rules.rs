@@ -1,10 +1,12 @@
+use crate::modifier::{apply_pct, total_effects};
 use crate::world::{Faction, Province};
 
 pub const MONTHS_PER_YEAR: u32 = 12;
 pub const FOOD_PER_DEVELOPMENT: i64 = 400;
 
 pub fn food_capacity(province: &Province) -> i64 {
-    province.development.max(0) * FOOD_PER_DEVELOPMENT
+    let base = province.development.max(0) * FOOD_PER_DEVELOPMENT;
+    apply_pct(base, total_effects(&province.modifiers).food_pct)
 }
 
 pub fn population_density(province: &Province) -> i64 {
@@ -25,7 +27,9 @@ pub fn tax_base(province: &Province) -> i64 {
 }
 
 pub fn province_income(province: &Province, faction: &Faction) -> i64 {
-    tax_base(province) * faction.tax_rate / 100
+    let pct = total_effects(&province.modifiers).income_pct
+        + total_effects(&faction.modifiers).income_pct;
+    apply_pct(tax_base(province) * faction.tax_rate / 100, pct)
 }
 
 pub fn province_upkeep(province: &Province) -> i64 {
@@ -47,11 +51,14 @@ pub struct UnrestBreakdown {
     pub tax: i64,
     pub food: i64,
     pub war: i64,
+    /// Sum of province and owner modifiers; may be negative.
+    pub modifiers: i64,
 }
 
 impl UnrestBreakdown {
     pub fn target(&self) -> i64 {
-        (self.legitimacy + self.treasury + self.tax + self.food + self.war).clamp(0, 100)
+        (self.legitimacy + self.treasury + self.tax + self.food + self.war + self.modifiers)
+            .clamp(0, 100)
     }
 }
 
@@ -77,6 +84,8 @@ pub fn unrest_breakdown(province: &Province, faction: &Faction, at_war: bool) ->
         }
     };
     let war = if at_war { 8 } else { 0 };
+    let modifiers =
+        total_effects(&province.modifiers).unrest + total_effects(&faction.modifiers).unrest;
 
     UnrestBreakdown {
         legitimacy,
@@ -84,9 +93,14 @@ pub fn unrest_breakdown(province: &Province, faction: &Faction, at_war: bool) ->
         tax,
         food,
         war,
+        modifiers,
     }
 }
 
 pub fn unrest_target(province: &Province, faction: &Faction, at_war: bool) -> i64 {
     unrest_breakdown(province, faction, at_war).target()
+}
+
+pub fn legitimacy_from_modifiers(faction: &Faction) -> i64 {
+    total_effects(&faction.modifiers).legitimacy
 }

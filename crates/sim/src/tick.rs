@@ -1,5 +1,6 @@
 use crate::command::Command;
 use crate::diplomacy::DEFAULT_TRUCE_MONTHS;
+use crate::event;
 use crate::rules::{self, MONTHS_PER_YEAR};
 use crate::world::{FactionId, Province, ProvinceId, World};
 
@@ -38,6 +39,8 @@ pub fn tick_month(world: &mut World) {
     update_legitimacy(world);
     world.diplomacy.tick();
     apply_random_shocks(world);
+    event::tick_all_modifiers(world);
+    event::fire_events(world);
 }
 
 fn apply_commands(world: &mut World) {
@@ -294,6 +297,8 @@ fn update_legitimacy(world: &mut World) {
         if faction.treasury < -500 || faction.tax_rate > 50 {
             faction.legitimacy -= 1;
         }
+
+        faction.legitimacy += rules::legitimacy_from_modifiers(faction);
 
         faction.legitimacy = faction.legitimacy.clamp(0, 100);
     }

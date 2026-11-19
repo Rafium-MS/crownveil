@@ -1,8 +1,12 @@
-use crownveil_content::{load_world_with_map, MapLayout, MapPosition};
-use crownveil_sim::{food_capacity, Command, FactionId, Province, ProvinceId, World};
+use crownveil_content::{load_events, load_world_with_map, MapLayout, MapPosition};
+use crownveil_sim::{
+    food_capacity, ActiveModifier, Command, FactionId, Province, ProvinceId, World,
+};
 use eframe::egui;
 
 const WORLD_SOURCE: &str = include_str!("../../../content/world.ron");
+const EVENTS_SOURCE: &str = include_str!("../../../content/events.ron");
+const CHRONICLE_ENTRIES: usize = 12;
 const SECONDS_PER_MONTH: f64 = 0.5;
 const MAX_MONTHS_PER_FRAME: u32 = 24;
 const HEX_RADIUS: f32 = 50.0;
@@ -156,7 +160,10 @@ pub struct CrownveilApp {
 
 impl CrownveilApp {
     pub fn new() -> Self {
-        match load_world_with_map(WORLD_SOURCE, 1) {
+        let loaded = load_world_with_map(WORLD_SOURCE, 1).and_then(|(world, map_layout)| {
+            load_events(EVENTS_SOURCE, world).map(|world| (world, map_layout))
+        });
+        match loaded {
             Ok((world, map_layout)) => Self::with_world_and_map(world, map_layout),
             Err(error) => {
                 let world = World::demo(1);
@@ -297,6 +304,7 @@ impl CrownveilApp {
                         let is_player = id == self.player;
                         let provinces = self.world.province_count(id);
                         let wars = self.world.diplomacy.war_count_for(id);
+                        let modifiers = self.world.factions[index].modifiers.clone();
 
                         ui.group(|ui| {
                             ui.horizontal(|ui| {
@@ -311,6 +319,7 @@ impl CrownveilApp {
                             ui.label(format!("Exército: {army}"));
                             ui.label(format!("Províncias: {provinces}"));
                             ui.label(format!("Guerras: {wars}"));
+                            modifier_list(ui, &self.world, &modifiers);
                             if !is_player && ui.button("Jogar como esta facção").clicked() {
                                 self.player = id;
                             }
@@ -575,6 +584,7 @@ impl CrownveilApp {
             .faction(owner)
             .map(|faction| faction.name.clone())
             .unwrap_or_else(|| "?".to_string());
+        let modifiers = province.modifiers.clone();
         let explanation = self.world.explain_unrest(id);
         let at_war = owner != self.player && self.world.diplomacy.is_at_war(self.player, owner);
 
@@ -588,13 +598,20 @@ impl CrownveilApp {
             let breakdown = explanation.breakdown;
             ui.label(format!("Alvo de descontentamento: {}", explanation.target));
             ui.label(format!(
-                "Causas: legitimidade +{}, tesouro +{}, imposto +{}, comida +{}, guerra +{}",
+                "Causas: legitimidade +{}, tesouro +{}, imposto +{}, comida +{}, guerra +{}, modificadores {:+}",
                 breakdown.legitimacy,
                 breakdown.treasury,
                 breakdown.tax,
                 breakdown.food,
-                breakdown.war
+                breakdown.war,
+                breakdown.modifiers
             ));
+        }
+
+        if !modifiers.is_empty() {
+            ui.separator();
+            ui.strong("Modificadores");
+            modifier_list(ui, &self.world, &modifiers);
         }
 
         if at_war && ui.button("Atacar província").clicked() {
@@ -614,7 +631,47 @@ impl CrownveilApp {
                 ui.heading("Província selecionada");
                 ui.separator();
                 self.province_details(ui);
+                ui.separator();
+                self.chronicle(ui);
             });
+    }
+
+    fn chronicle(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Crônica");
+        if self.world.event_log.is_empty() {
+            ui.label("Nenhum evento ainda.");
+            return;
+        }
+
+        let mut selected = None;
+        egui::ScrollArea::vertical()
+            .id_salt("chronicle")
+            .show(ui, |ui| {
+                for record in self.world.event_log.iter().rev().take(CHRONICLE_ENTRIES) {
+                    let Some(event) = self.world.event_def(record.event) else {
+                        continue;
+                    };
+                    let target = self.world.target_name(record.target);
+                    let label = format!(
+                        "{}/{} — {}: {}",
+                        record.month, record.year, event.title, target
+                    );
+                    let response = ui.selectable_label(false, label);
+                    let response = if event.description.is_empty() {
+                        response
+                    } else {
+                        response.on_hover_text(event.description.as_str())
+                    };
+                    if response.clicked() {
+                        if let crownveil_sim::EventTarget::Province(id) = record.target {
+                            selected = Some(id);
+                        }
+                    }
+                }
+            });
+        if selected.is_some() {
+            self.selected_province = selected;
+        }
     }
 
     fn central_panel(&mut self, ctx: &egui::Context) {
@@ -656,6 +713,36 @@ impl eframe::App for CrownveilApp {
             ctx.request_repaint();
         }
     }
+}
+
+fn modifier_list(ui: &mut egui::Ui, world: &World, modifiers: &[ActiveModifier]) {
+    for active in modifiers {
+        let name = world
+            .modifier_def(active.modifier)
+            .map(|def| def.name.as_str())
+            .unwrap_or("?");
+        let duration = match active.months_left {
+            Some(months) => format!("{months} meses"),
+            None => "permanente".to_string(),
+        };
+        ui.label(format!("• {name} ({duration})"))
+            .on_hover_text(describe_effects(active));
+    }
+}
+
+fn describe_effects(active: &ActiveModifier) -> String {
+    let effects = active.effects;
+    let parts: Vec<String> = [
+        (effects.unrest, "descontentamento", ""),
+        (effects.income_pct, "receita", "%"),
+        (effects.food_pct, "comida", "%"),
+        (effects.legitimacy, "legitimidade/mês", ""),
+    ]
+    .iter()
+    .filter(|(value, _, _)| *value != 0)
+    .map(|(value, label, suffix)| format!("{label} {value:+}{suffix}"))
+    .collect();
+    parts.join(", ")
 }
 
 fn hex_center(position: MapPosition) -> egui::Pos2 {
@@ -743,6 +830,30 @@ mod tests {
 
     fn demo_app() -> CrownveilApp {
         CrownveilApp::with_world(World::demo(1))
+    }
+
+    #[test]
+    fn bundled_content_includes_events() {
+        let app = CrownveilApp::new();
+        assert!(!app.world.events.is_empty());
+        assert!(!app.world.modifiers.is_empty());
+    }
+
+    #[test]
+    fn effects_description_skips_zero_values() {
+        let active = ActiveModifier {
+            modifier: 0,
+            months_left: Some(3),
+            effects: crownveil_sim::ModifierEffects {
+                unrest: -4,
+                food_pct: 15,
+                ..Default::default()
+            },
+        };
+        assert_eq!(
+            describe_effects(&active),
+            "descontentamento -4, comida +15%"
+        );
     }
 
     #[test]

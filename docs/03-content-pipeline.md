@@ -68,6 +68,61 @@ O loader rejeita `owner` que não corresponda a nenhuma facção, retornando
 `LoadError::UnknownFaction` com o nome da província e da facção. Se `map` for
 omitido, a província recebe uma posição automática em grade (4 colunas).
 
+## Eventos e modificadores
+
+`content/events.ron` define modificadores e eventos. É carregado com
+`load_events(source, world)` depois de `load_world`.
+
+```ron
+(
+    modifiers: [
+        (key: "seca", name: "Seca", unrest: 3, food_pct: -20),
+    ],
+    events: [
+        (
+            key: "seca",
+            title: "Seca",
+            description: "Os rios minguam e a terra racha sob o sol.",
+            scope: Province,
+            chance: 3,
+            cooldown_months: 60,
+            conditions: [LacksModifier("colheita_farta")],
+            effects: [AddModifier("seca", Some(12)), Unrest(3)],
+        ),
+    ],
+)
+```
+
+**Modificador**: `key` (único), `name`, e efeitos opcionais (padrão 0):
+`unrest`, `income_pct`, `food_pct` (só províncias), `legitimacy` (por mês, só
+facções).
+
+**Evento**:
+
+| Campo | Descrição |
+| --- | --- |
+| `key` | Identificador único |
+| `title`, `description` | Texto exibido na Crônica |
+| `scope` | `Province` ou `Faction` |
+| `chance` | Chance mensal por alvo, em milésimos (0–1000) |
+| `cooldown_months` | Meses até repetir no mesmo alvo; padrão 120 |
+| `conditions` | Todas precisam valer (opcional) |
+| `effects` | Pelo menos um |
+
+Condições: `UnrestAtLeast(n)`, `UnrestBelow(n)`, `DevelopmentAtLeast(n)`,
+`DevelopmentBelow(n)`, `ClergyAtLeast(n)`, `Famine`, `NoFamine` (só
+província); `LegitimacyAtLeast(n)`, `LegitimacyBelow(n)`, `TreasuryAtLeast(n)`,
+`TreasuryBelow(n)`, `TaxAtLeast(n)`, `AtWar`, `AtPeace`, `HasModifier("k")`,
+`LacksModifier("k")`.
+
+Efeitos: `Unrest(n)`, `Development(n)`, `Population(pct)`, `Legitimacy(n)`,
+`Treasury(n)`, `Army(n)`, `AddModifier("k", Some(meses))` (ou `None` para
+permanente), `RemoveModifier("k")`.
+
+O loader rejeita chaves duplicadas, modificadores desconhecidos, condições de
+província em eventos de facção, `chance` fora de 0–1000, cooldown negativo,
+duração não positiva, `Population` abaixo de −100 e eventos sem efeitos.
+
 ### Diplomacia
 
 Hoje as relações entre facções começam em 0 e não há guerras iniciais; guerras
@@ -76,8 +131,7 @@ tréguas iniciais entrarão como um bloco opcional `diplomacy`.
 
 ## Evolução planejada
 
-- **Eventos** (`content/events/`): condição + peso + efeitos.
-- **Modificadores** (`content/modifiers/`): bônus temporários por tag.
+- **Eventos com escolhas**: opções com efeitos e custos diferentes.
 - **Culturas e raças** (`content/cultures/`): tags que afetam crescimento,
   produção e descontentamento.
 - **Localização** (`content/loc/`): textos separados dos identificadores.

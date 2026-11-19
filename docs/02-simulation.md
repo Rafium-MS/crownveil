@@ -1,6 +1,7 @@
 # Simulação
 
-Este documento descreve o que a simulação faz **hoje** (M2) e como estendê-la.
+Este documento descreve o que a simulação faz **hoje** (M5 em andamento) e
+como estendê-la.
 As fórmulas atuais são provisórias: existem para provar o loop e dar
 consequência às decisões, não para estarem balanceadas.
 
@@ -14,6 +15,10 @@ consequência às decisões, não para estarem balanceadas.
 - `Pops`: quatro classes — `peasant`, `burgher`, `noble`, `clergy`.
 - `Diplomacy`: matriz de relações, matriz de tréguas e lista de guerras.
 - `War`: atacante, defensor e data de início.
+- `ModifierDef` / `ActiveModifier`: definição de modificador e instância ativa
+  (com meses restantes ou permanente) em uma província ou facção.
+- `EventDef`: evento com escopo, chance, cooldown, condições e efeitos;
+  `event_log` guarda os últimos 200 eventos ocorridos.
 
 Todas as quantias usam `i64`. Não há ponto flutuante na simulação.
 
@@ -51,6 +56,10 @@ mesmos comandos.
 6. **Atualizar legitimidade** (convergência para 50 + penalidades).
 7. **Tick da diplomacia**: contar tréguas e aproximar relações de 0 em paz.
 8. **Choques aleatórios** de descontentamento.
+9. **Modificadores**: decrementa a duração e remove os que chegaram a 0.
+10. **Eventos**: para cada evento (em ordem) e cada alvo (em ordem), se não
+    estiver em cooldown e todas as condições valerem, rola `rng(0..999) <
+    chance`; se passar, aplica os efeitos, registra cooldown e entra no log.
 
 ## Economia e população
 
@@ -94,7 +103,8 @@ alvo = clamp(
   + (se tesouro < 0 { 20 } senão { 0 })
   + tax_rate/5
   + (se fome { 10 } senão se densidade > 90 { (densidade - 90)/2 } senão { 0 })
-  + (se a facção está em guerra { 8 } senão { 0 }),
+  + (se a facção está em guerra { 8 } senão { 0 })
+  + modificadores.unrest (província + facção dona),
   0, 100
 )
 ```
@@ -134,6 +144,36 @@ se legitimidade > 50: legitimidade -= 1
 se tesouro < -500 ou tax_rate > 50: legitimidade -= 1
 legitimidade = clamp(legitimidade, 0, 100)
 ```
+
+## Modificadores
+
+Efeitos somam entre todos os modificadores ativos:
+
+| Efeito | Onde vale | Regra |
+| --- | --- | --- |
+| `unrest` | província e facção (todas as suas províncias) | soma ao alvo de descontentamento |
+| `income_pct` | província e facção | `receita = receita * (100 + pct) / 100` |
+| `food_pct` | só província | `capacidade = capacidade * (100 + pct) / 100` |
+| `legitimacy` | só facção | soma à legitimidade a cada mês |
+
+Percentuais nunca invertem o sinal (`100 + pct` é limitado a 0). Reaplicar um
+modificador ativo não acumula: renova a duração (fica a maior).
+
+Um modificador adicionado no mês *T* vale nos meses *T+1* … *T+N* e some no
+fim do mês *T+N*.
+
+## Eventos
+
+- **Escopo** `Province` (cada província) ou `Faction` (cada facção com ao
+  menos uma província).
+- **Condições** de província (`UnrestAtLeast`, `Famine`, `ClergyAtLeast`, …)
+  só valem no escopo de província. Condições de facção (`LegitimacyBelow`,
+  `AtWar`, …) olham a facção dona quando o escopo é província.
+  `HasModifier`/`LacksModifier` olham o próprio alvo.
+- **Efeitos**: `Unrest`, `Development` e `Population` (%) agem na província
+  ou em todas as províncias da facção; `Legitimacy`, `Treasury` e `Army` agem
+  na facção (dona, no escopo de província); `AddModifier`/`RemoveModifier`
+  agem no próprio alvo.
 
 ## Diplomacia
 
@@ -204,8 +244,7 @@ parte do contrato de determinismo.
 - **Diplomacia profunda**: alianças, casamentos, vassalagem, casus belli.
 - **Guerra no mapa**: exércitos em províncias, cercos, frentes e suprimento.
 - **Negociação de paz**: aceitação baseada em desgaste, não comando imediato.
-- **Modificadores**: bônus/malus temporários por província ou facção.
-- **Eventos**: condições + efeitos, definidos em conteúdo.
+- **Eventos com escolhas**: opções com efeitos diferentes para o jogador.
 - **Fé e magia**: recursos e modificadores que interagem com legitimidade e
   produção.
 - **Comida explícita**: estoques, colheitas e rotas de suprimento.

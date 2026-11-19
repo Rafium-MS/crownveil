@@ -1,9 +1,11 @@
 use std::io::{self, BufRead, Write};
 
-use crownveil_content::load_world;
-use crownveil_sim::{food_capacity, Command, World};
+use crownveil_content::{load_events, load_world};
+use crownveil_sim::{food_capacity, ActiveModifier, Command, World};
 
 const WORLD_SOURCE: &str = include_str!("../../../../content/world.ron");
+const EVENTS_SOURCE: &str = include_str!("../../../../content/events.ron");
+const DEFAULT_EVENT_COUNT: usize = 10;
 
 fn main() {
     let seed = std::env::args()
@@ -11,13 +13,14 @@ fn main() {
         .and_then(|value| value.parse().ok())
         .unwrap_or(1);
 
-    let mut world = match load_world(WORLD_SOURCE, seed) {
-        Ok(world) => world,
-        Err(error) => {
-            eprintln!("erro ao carregar conteúdo: {error}");
-            std::process::exit(1);
-        }
-    };
+    let mut world =
+        match load_world(WORLD_SOURCE, seed).and_then(|world| load_events(EVENTS_SOURCE, world)) {
+            Ok(world) => world,
+            Err(error) => {
+                eprintln!("erro ao carregar conteúdo: {error}");
+                std::process::exit(1);
+            }
+        };
 
     println!("Crownveil REPL — seed {seed}");
     print_help();
@@ -108,6 +111,13 @@ fn main() {
                 _ => println!("uso: attack <facção> <província>"),
             },
             "wars" => print_wars(&world),
+            "events" => {
+                let count = parts
+                    .get(1)
+                    .and_then(|value| value.parse().ok())
+                    .unwrap_or(DEFAULT_EVENT_COUNT);
+                print_events(&world, count);
+            }
             "step" => {
                 let months: usize = parts
                     .get(1)
@@ -141,7 +151,8 @@ fn print_help() {
     println!("  attack <facção> <prov> ataca uma província inimiga");
     println!("  wars                   lista guerras ativas");
     println!("  step <meses>           avança a simulação (padrão: 1)");
-    println!("  explain <província>    explica o descontentamento da província");
+    println!("  explain <província>    explica o descontentamento e mostra modificadores");
+    println!("  events [n]             mostra os últimos n eventos (padrão: 10)");
     println!("  help                   mostra esta ajuda");
     println!("  quit                   sai");
 }
@@ -230,4 +241,51 @@ fn print_explanation(world: &World, province_id: usize) {
         explanation.breakdown.food,
         explanation.breakdown.war
     );
+    println!("  modificadores {:+}", explanation.breakdown.modifiers);
+    print_modifiers(world, "  província", &province.modifiers);
+    if let Some(owner) = world.faction(province.owner) {
+        print_modifiers(world, "  facção", &owner.modifiers);
+    }
+}
+
+fn print_modifiers(world: &World, label: &str, modifiers: &[ActiveModifier]) {
+    for active in modifiers {
+        let name = world
+            .modifier_def(active.modifier)
+            .map(|def| def.name.as_str())
+            .unwrap_or("?");
+        let duration = match active.months_left {
+            Some(months) => format!("{months} meses"),
+            None => "permanente".to_string(),
+        };
+        let effects = active.effects;
+        println!(
+            "{label}: {name} ({duration}) — descontentamento {:+}, receita {:+}%, comida {:+}%, legitimidade {:+}/mês",
+            effects.unrest, effects.income_pct, effects.food_pct, effects.legitimacy
+        );
+    }
+}
+
+fn print_events(world: &World, count: usize) {
+    if world.event_log.is_empty() {
+        println!("nenhum evento ainda");
+        return;
+    }
+
+    let start = world.event_log.len().saturating_sub(count);
+    for record in &world.event_log[start..] {
+        let Some(event) = world.event_def(record.event) else {
+            continue;
+        };
+        println!(
+            "  [{}/{}] {} — {}",
+            record.month,
+            record.year,
+            event.title,
+            world.target_name(record.target)
+        );
+        if !event.description.is_empty() {
+            println!("      {}", event.description);
+        }
+    }
 }

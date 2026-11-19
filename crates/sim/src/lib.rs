@@ -1,5 +1,7 @@
 pub mod command;
 pub mod diplomacy;
+pub mod event;
+pub mod modifier;
 pub mod rng;
 pub mod rules;
 pub mod tick;
@@ -7,6 +9,11 @@ pub mod world;
 
 pub use command::Command;
 pub use diplomacy::{Diplomacy, War, DEFAULT_TRUCE_MONTHS};
+pub use event::{
+    trigger_event, Condition, Effect, EventCooldown, EventDef, EventId, EventRecord, EventScope,
+    EventTarget,
+};
+pub use modifier::{ActiveModifier, ModifierDef, ModifierEffects, ModifierId};
 pub use rng::Rng;
 pub use rules::{food_capacity, garrison, UnrestBreakdown, UnrestExplanation};
 pub use tick::tick_month;

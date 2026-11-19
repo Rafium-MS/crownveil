@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::command::Command;
 use crate::diplomacy::Diplomacy;
+use crate::event::{EventCooldown, EventDef, EventId, EventRecord, EventTarget};
+use crate::modifier::{ActiveModifier, ModifierDef, ModifierId};
 use crate::rng::Rng;
 use crate::rules::{self, UnrestExplanation};
 
@@ -47,6 +49,8 @@ pub struct Province {
     pub development: i64,
     pub unrest: i64,
     pub pops: Pops,
+    #[serde(default)]
+    pub modifiers: Vec<ActiveModifier>,
 }
 
 impl Province {
@@ -65,6 +69,7 @@ impl Province {
             development,
             unrest,
             pops,
+            modifiers: Vec::new(),
         }
     }
 }
@@ -78,6 +83,8 @@ pub struct Faction {
     pub tax_rate: i64,
     pub army: i64,
     pub court_upkeep: i64,
+    #[serde(default)]
+    pub modifiers: Vec<ActiveModifier>,
 }
 
 impl Faction {
@@ -90,6 +97,7 @@ impl Faction {
             tax_rate: 20,
             army: 0,
             court_upkeep: 20,
+            modifiers: Vec::new(),
         }
     }
 
@@ -120,6 +128,14 @@ pub struct World {
     #[serde(default)]
     pub pending_commands: Vec<Command>,
     pub diplomacy: Diplomacy,
+    #[serde(default)]
+    pub modifiers: Vec<ModifierDef>,
+    #[serde(default)]
+    pub events: Vec<EventDef>,
+    #[serde(default)]
+    pub event_log: Vec<EventRecord>,
+    #[serde(default)]
+    pub event_cooldowns: Vec<EventCooldown>,
 }
 
 impl World {
@@ -134,7 +150,33 @@ impl World {
             rng: Rng::new(seed),
             pending_commands: Vec::new(),
             diplomacy,
+            modifiers: Vec::new(),
+            events: Vec::new(),
+            event_log: Vec::new(),
+            event_cooldowns: Vec::new(),
         }
+    }
+
+    pub fn with_events(mut self, modifiers: Vec<ModifierDef>, events: Vec<EventDef>) -> Self {
+        self.modifiers = modifiers;
+        self.events = events;
+        self
+    }
+
+    pub fn modifier_def(&self, id: ModifierId) -> Option<&ModifierDef> {
+        self.modifiers.get(id)
+    }
+
+    pub fn event_def(&self, id: EventId) -> Option<&EventDef> {
+        self.events.get(id)
+    }
+
+    pub fn target_name(&self, target: EventTarget) -> &str {
+        let name = match target {
+            EventTarget::Province(id) => self.provinces.get(id).map(|p| p.name.as_str()),
+            EventTarget::Faction(id) => self.factions.get(id).map(|f| f.name.as_str()),
+        };
+        name.unwrap_or("?")
     }
 
     pub fn tick_month(&mut self) {
