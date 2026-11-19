@@ -17,6 +17,6 @@ pub use event::{
 pub use modifier::{ActiveModifier, ModifierDef, ModifierEffects, ModifierId};
 pub use rite::{check_rite, rite_target, RiteBlock, RiteCooldown, RiteDef, RiteId};
 pub use rng::Rng;
-pub use rules::{food_capacity, garrison, UnrestBreakdown, UnrestExplanation};
+pub use rules::{food_capacity, garrison, Budget, UnrestBreakdown, UnrestExplanation};
 pub use tick::tick_month;
 pub use world::{Faction, FactionId, PopClass, Pops, Province, ProvinceId, World};

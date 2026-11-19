@@ -175,9 +175,11 @@ duração não positiva, `Population` abaixo de −100, eventos sem efeitos nem
 opções, eventos com uma única opção, opções sem `label`, `TriggerEvent` para
 evento desconhecido, com menos de 1 mês ou de facção para província.
 
-## Ritos
+## Ritos e decretos
 
-`content/rites.ron` define as ações pagas do jogador. É carregado com
+`content/rites.ron` define as ações pagas do jogador. Decretos são ritos pagos
+só com ouro (Obras Públicas, Festival Real, Doação ao Clero, Subsídio aos
+Magos): dão destino ao tesouro, que perde 2% ao mês para a corrupção. É carregado com
 `load_rites(source, world)` **depois** de `load_events`, porque ritos
 referenciam modificadores pela chave.
 

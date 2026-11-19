@@ -210,3 +210,21 @@ inserir, remover campos), sem duplicar tipos; o leitor próprio precisa
 acompanhar a sintaxe RON que o `ron` gera (testado com saves reais). Quebrar
 saves sem migração passa a falhar no `cargo test`. Por ora a cadeia está
 vazia: o formato continua na versão 1.
+
+## ADR-0016 — Corrupção como ralo do tesouro e decretos como destino
+
+**Contexto:** o lote mostrou tesouros de 80–170 mil ouros ao fim de um século,
+começando de ~1.000. Sem destino para o ouro, a economia perdia o sentido
+depois de poucos anos.
+
+**Decisão:** a corrupção leva 2% do tesouro positivo por mês
+(`CORRUPTION_DIVISOR = 50`), o mesmo modelo de perda de fé e magia (ADR-0012):
+o estoque tende a `saldo * 50`. O destino do ouro vem do conteúdo, como ritos
+pagos só em ouro ("decretos"), sem mecânica nova. `World::budget` expõe a
+decomposição do saldo para a UI explicar a perda.
+
+**Consequências:** tesouros finais caíram para 3–6 mil sem afetar população ou
+eventos; guardar ouro passa a ter custo e investir passa a compensar. A IA
+ainda não gasta, então chega ao equilíbrio passivamente. Ajustar o divisor muda
+o tamanho típico do tesouro; mudar para uma corrupção ligada à legitimidade
+fica como opção futura.

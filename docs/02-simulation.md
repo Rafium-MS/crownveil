@@ -63,7 +63,7 @@ mesmos comandos.
 4. **Efeitos de guerra**: atrito militar, perda de legitimidade e relação −100.
 5. **Fé e magia**: perda de 2% do estoque, soma da geração do mês e dos
    modificadores de facção, limite em 0–1000.
-6. **Cobrar custos de facção**: corte + manutenção do exército.
+6. **Cobrar custos de facção**: corte + manutenção do exército + corrupção.
 7. **Atualizar legitimidade** (convergência para 50 + penalidades).
 8. **Tick da diplomacia**: contar tréguas e aproximar relações de 0 em paz.
 9. **Choques aleatórios** de descontentamento.
@@ -108,8 +108,16 @@ despesa = clergy/100 + noble/100
 
 ```
 manutencao_exercito = army / 10
-custos = court_upkeep + manutencao_exercito
+corrupcao           = max(tesouro, 0) / 50        // 2% do ouro guardado
+custos = court_upkeep + manutencao_exercito + corrupcao
 ```
+
+A corrupção é o ralo do tesouro: sem gastos, o ouro se estabiliza perto de
+`saldo mensal * 50` em vez de crescer para sempre. Dívida não sofre corrupção.
+`World::budget(facção)` devolve a decomposição (impostos, manutenção das
+províncias, corte, exército, corrupção e saldo) para a UI e o REPL; a corrupção
+ali é calculada sobre o tesouro atual, então pode diferir do mês real em um ou
+dois pontos. O desenvolvimento fica limitado a 1–100.
 
 ### Alvo de descontentamento
 

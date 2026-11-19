@@ -52,11 +52,22 @@ partida; com 270, nunca, porque a magia das facções se estabiliza perto de 250
 (geração × 50, ver ADR-0012). Deixar o Véu realmente raro pede chance mais fina
 que 1‰ por mês.
 
-## Problemas em aberto (decisão de design)
+## Rodada 2: freio no tesouro
 
-- **Tesouro sem freio**: as facções terminam o século com 80–170 mil de ouro
-  (começam com ~1.000). Sem IA que gaste, o ouro não tem destino; mesmo para o
-  jogador, ele perde valor depois de alguns anos.
+Nova regra de corrupção (2% do tesouro guardado por mês) e decretos em ouro.
+Mesmo lote (200 × 100 anos):
+
+| Facção | Tesouro final antes | Depois |
+| --- | --- | --- |
+| Reino de Aeldrath | 166.546 | 6.208 |
+| Corte de Vhalen | 97.121 | 3.758 |
+| Sacro Domínio de Orem | 78.988 | 3.114 |
+
+População, fome e frequência de eventos não mudaram: a regra só drena ouro
+parado. Para o jogador, guardar mais de alguns milhares passa a custar caro, e
+gastar em decretos (Obras Públicas a 400, Festival Real a 500…) vale a pena.
+
+## Problemas em aberto (decisão de design)
 - **Legitimidade presa em 50**: a convergência de ±1 por mês domina; por isso
   Crise de Sucessão (< 35) e Era Dourada (≥ 65) quase nunca acontecem sem o
   jogador.

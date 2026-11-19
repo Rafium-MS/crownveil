@@ -468,7 +468,8 @@ pub(crate) fn apply_effect(
         Effect::Development(delta) => {
             for id in affected_provinces(world, target) {
                 if let Some(province) = world.provinces.get_mut(id) {
-                    province.development = (province.development + delta).max(1);
+                    province.development =
+                        (province.development + delta).clamp(1, rules::MAX_DEVELOPMENT);
                 }
             }
         }

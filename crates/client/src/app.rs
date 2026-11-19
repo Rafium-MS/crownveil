@@ -512,6 +512,7 @@ impl CrownveilApp {
                         let provinces = self.world.province_count(id);
                         let wars = self.world.diplomacy.war_count_for(id);
                         let modifiers = self.world.factions[index].modifiers.clone();
+                        let budget = self.world.budget(id).unwrap_or_default();
 
                         ui.group(|ui| {
                             ui.horizontal(|ui| {
@@ -521,6 +522,8 @@ impl CrownveilApp {
                                 }
                             });
                             ui.label(format!("Tesouro: {treasury}"));
+                            ui.label(format!("Saldo mensal: {:+}", budget.net()))
+                                .on_hover_text(describe_budget(&budget));
                             ui.label(format!("Legitimidade: {legitimacy}"));
                             ui.label(format!("Imposto: {tax_rate}%"));
                             ui.label(format!("Exército: {army}"));
@@ -854,7 +857,7 @@ impl CrownveilApp {
             return;
         };
         let mut performed = None;
-        egui::CollapsingHeader::new("Ritos")
+        egui::CollapsingHeader::new("Ritos e decretos")
             .default_open(false)
             .show(ui, |ui| {
                 let faction = &self.world.factions[player];
@@ -1080,6 +1083,19 @@ fn saves_dir() -> Option<PathBuf> {
 
 fn quicksave_path() -> Option<PathBuf> {
     saves_dir().map(|dir| dir.join(QUICKSAVE_FILE))
+}
+
+fn describe_budget(budget: &crownveil_sim::Budget) -> String {
+    format!(
+        "Impostos: +{}\nManutenção das províncias: -{}\nCorte: -{}\nExército: -{}\n\
+         Corrupção (2% do tesouro guardado): -{}\nSaldo: {:+}",
+        budget.income,
+        budget.province_upkeep,
+        budget.court,
+        budget.army,
+        budget.corruption,
+        budget.net()
+    )
 }
 
 fn describe_cost(faith: i64, mana: i64, gold: i64) -> String {
@@ -1322,6 +1338,14 @@ mod tests {
         if let Some(dir) = saves_dir() {
             assert!(dir.ends_with("crownveil/saves"));
         }
+    }
+
+    #[test]
+    fn budget_tooltip_lists_corruption() {
+        let mut app = demo_app();
+        app.world.factions[0].treasury = 5_000;
+        let text = describe_budget(&app.world.budget(0).unwrap());
+        assert!(text.contains("Corrupção (2% do tesouro guardado): -100"));
     }
 
     #[test]

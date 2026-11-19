@@ -172,7 +172,8 @@ fn faction_rite_pays_costs_and_applies_effects() {
     // Paying first means slightly less decay (2% of the cost) this month.
     assert_eq!(caster.faith, twin.factions[PLAYER].faith - 100 + 2);
     assert_eq!(caster.mana, twin.factions[PLAYER].mana - 50 + 1);
-    assert_eq!(caster.treasury, twin.factions[PLAYER].treasury - 200);
+    // Same for gold: 2% less corruption on the 200 already spent.
+    assert_eq!(caster.treasury, twin.factions[PLAYER].treasury - 200 + 4);
     assert!(caster.legitimacy > twin.factions[PLAYER].legitimacy);
     for province in world.provinces.iter().filter(|p| p.owner == PLAYER) {
         assert!(province.unrest < twin.provinces[province.id].unrest);

@@ -1,4 +1,6 @@
-// Ritos: ações do jogador pagas com fé, magia e/ou ouro.
+// Ritos e decretos: ações do jogador pagas com fé, magia e/ou ouro.
+// Os decretos (só ouro) existem para dar destino ao tesouro, que perde 2% ao
+// mês para a corrupção quando fica parado.
 //
 // scope: Province (numa província da própria facção) ou Faction (na facção).
 // Custos (faith_cost, mana_cost, gold_cost) são opcionais, padrão 0.
@@ -93,6 +95,45 @@
             mana_cost: 250,
             cooldown_months: 36,
             effects: [Army(250), Unrest(3)],
+        ),
+
+        // ---- Decretos (ouro) ----
+        (
+            key: "obras_publicas",
+            name: "Obras Públicas",
+            description: "Estradas, celeiros e aquedutos: a província cresce para além do que era.",
+            scope: Province,
+            gold_cost: 400,
+            cooldown_months: 12,
+            conditions: [DevelopmentBelow(100)],
+            effects: [Development(1)],
+        ),
+        (
+            key: "festival_real",
+            name: "Festival Real",
+            description: "Pão, vinho e torneios por conta da coroa em todas as cidades.",
+            scope: Faction,
+            gold_cost: 500,
+            cooldown_months: 24,
+            effects: [Unrest(-8)],
+        ),
+        (
+            key: "doacao_ao_clero",
+            name: "Doação ao Clero",
+            description: "Ouro para os templos; orações pela coroa.",
+            scope: Faction,
+            gold_cost: 250,
+            cooldown_months: 6,
+            effects: [Faith(80)],
+        ),
+        (
+            key: "subsidio_aos_magos",
+            name: "Subsídio aos Magos",
+            description: "Bolsas para a academia arcana, em troca de serviços futuros.",
+            scope: Faction,
+            gold_cost: 300,
+            cooldown_months: 6,
+            effects: [Mana(60)],
         ),
     ],
 )

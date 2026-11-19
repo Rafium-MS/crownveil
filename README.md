@@ -18,6 +18,8 @@ seleção, tooltips, zoom e pan. Eventos e modificadores orientados a dados
 (pestes, colheitas, revoltas, presságios) aparecem na Crônica da UI; vários
 deles são dilemas em que o jogador escolhe a resposta. Fé e magia são recursos
 das facções, gastos em ritos (curar a peste, conjurar chuva, selar o Véu…).
+O ouro parado sofre corrupção (2% ao mês); decretos como Obras Públicas e
+Festival Real dão destino ao tesouro.
 Algumas escolhas desencadeiam crises de vários elos (mártires e insurreição,
 segunda onda da peste, guerra civil…), que podem ser evitadas mudando a situação
 antes de o próximo elo chegar.
@@ -54,8 +56,8 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 No REPL, os comandos são: `status`, `provinces`, `tax`, `recruit`, `disband`,
 `war`, `peace`, `attack`, `wars`, `events`, `decisions`, `choose`, `player`,
-`rites`, `rite`, `crises`, `save`, `load`, `step`, `explain`, `help` e
-`quit`. O REPL joga com a facção 0; `step` para
+`rites`, `rite`, `crises`, `budget`, `save`, `load`, `step`, `explain`,
+`help` e `quit`. O REPL joga com a facção 0; `step` para
 quando surge uma decisão, e `choose <decisão> <opção>` responde. Use
 `step N` para aplicar os comandos enfileirados e avançar `N` meses.
 

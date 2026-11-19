@@ -319,7 +319,8 @@ fn settle_resources(world: &mut World, gains: &[(i64, i64)]) {
 
 fn pay_faction_costs(world: &mut World) {
     for faction in &mut world.factions {
-        faction.treasury -= faction.court_upkeep + rules::army_upkeep(faction);
+        let corruption = rules::corruption(faction);
+        faction.treasury -= faction.court_upkeep + rules::army_upkeep(faction) + corruption;
     }
 }
 

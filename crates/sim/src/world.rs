@@ -275,6 +275,21 @@ impl World {
         })
     }
 
+    pub fn budget(&self, faction_id: FactionId) -> Option<rules::Budget> {
+        let faction = self.factions.get(faction_id)?;
+        let mut budget = rules::Budget {
+            court: faction.court_upkeep,
+            army: rules::army_upkeep(faction),
+            corruption: rules::corruption(faction),
+            ..rules::Budget::default()
+        };
+        for province in self.provinces.iter().filter(|p| p.owner == faction_id) {
+            budget.income += rules::province_income(province, faction);
+            budget.province_upkeep += rules::province_upkeep(province);
+        }
+        Some(budget)
+    }
+
     pub fn province_count(&self, faction: FactionId) -> usize {
         self.provinces
             .iter()

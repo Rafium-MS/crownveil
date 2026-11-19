@@ -190,6 +190,14 @@ fn main() {
                     Err(error) => println!("não foi possível carregar: {error}"),
                 }
             }
+            "budget" => {
+                let faction = parts
+                    .get(1)
+                    .and_then(|value| value.parse().ok())
+                    .or(world.player)
+                    .unwrap_or(DEFAULT_PLAYER);
+                print_budget(&world, faction);
+            }
             "decisions" => print_decisions(&world),
             "crises" => print_looming(&world),
             "choose" => match (
@@ -254,8 +262,9 @@ fn print_help() {
     println!("  events [n]             mostra os últimos n eventos (padrão: 10)");
     println!("  decisions              lista decisões pendentes do jogador");
     println!("  crises                 lista consequências pendentes das suas escolhas");
-    println!("  rites [província]      lista ritos e se estão disponíveis");
-    println!("  rite <rito> [prov]     realiza um rito (província só para ritos locais)");
+    println!("  budget [facção]        mostra receitas, custos e corrupção do mês");
+    println!("  rites [província]      lista ritos e decretos e se estão disponíveis");
+    println!("  rite <rito> [prov]     realiza um rito/decreto (província só para os locais)");
     println!("  choose <dec> <opção>   escolhe uma opção (aplicada no próximo tick)");
     println!("  player [facção|none]   mostra ou troca a facção do jogador");
     println!("  save [arquivo]         salva o jogo (padrão: {DEFAULT_SAVE})");
@@ -376,6 +385,20 @@ fn print_modifiers(world: &World, label: &str, modifiers: &[ActiveModifier]) {
             effects.unrest, effects.income_pct, effects.food_pct, effects.legitimacy
         );
     }
+}
+
+fn print_budget(world: &World, faction: FactionId) {
+    let (Some(budget), Some(def)) = (world.budget(faction), world.faction(faction)) else {
+        println!("facção {faction} não existe");
+        return;
+    };
+    println!("{} — tesouro {}", def.name, def.treasury);
+    println!("  impostos                  +{}", budget.income);
+    println!("  manutenção das províncias -{}", budget.province_upkeep);
+    println!("  corte                     -{}", budget.court);
+    println!("  exército                  -{}", budget.army);
+    println!("  corrupção (2% do tesouro) -{}", budget.corruption);
+    println!("  saldo do mês              {:+}", budget.net());
 }
 
 fn print_rites(world: &World, province: Option<usize>) {

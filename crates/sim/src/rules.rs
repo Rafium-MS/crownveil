@@ -4,10 +4,15 @@ use crate::world::{Faction, Province};
 pub const MONTHS_PER_YEAR: u32 = 12;
 pub const FOOD_PER_DEVELOPMENT: i64 = 400;
 pub const MAX_RESOURCE: i64 = 1000;
+pub const MAX_DEVELOPMENT: i64 = 100;
 /// Faith and magic lose `stock / RESOURCE_DECAY_DIVISOR` per month, so stocks
 /// settle near `monthly income * RESOURCE_DECAY_DIVISOR` unless spent.
 pub const RESOURCE_DECAY_DIVISOR: i64 = 50;
 pub const CLERGY_PER_FAITH: i64 = 100;
+/// Hoarded gold loses `treasury / CORRUPTION_DIVISOR` per month to corruption
+/// and waste, so treasuries settle near `net income * CORRUPTION_DIVISOR`
+/// instead of growing forever.
+pub const CORRUPTION_DIVISOR: i64 = 50;
 pub const DEVELOPMENT_PER_MANA: i64 = 25;
 pub const FAITH_PER_UNREST_POINT: i64 = 100;
 pub const MANA_PER_UNREST_POINT: i64 = 200;
@@ -63,6 +68,28 @@ pub fn faction_mana_bonus(faction: &Faction) -> i64 {
 
 pub fn army_upkeep(faction: &Faction) -> i64 {
     faction.army / 10
+}
+
+/// Debt is not corrupted.
+pub fn corruption(faction: &Faction) -> i64 {
+    faction.treasury.max(0) / CORRUPTION_DIVISOR
+}
+
+/// Monthly gold flow of a faction, for players and reports. `corruption` is
+/// computed on the current treasury, so it is the cost of next month.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Budget {
+    pub income: i64,
+    pub province_upkeep: i64,
+    pub court: i64,
+    pub army: i64,
+    pub corruption: i64,
+}
+
+impl Budget {
+    pub fn net(&self) -> i64 {
+        self.income - self.province_upkeep - self.court - self.army - self.corruption
+    }
 }
 
 pub fn garrison(province: &Province) -> i64 {

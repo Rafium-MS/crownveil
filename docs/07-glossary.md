@@ -14,6 +14,8 @@
 | **Tesouro** | Recurso monetário da facção, em unidades inteiras. |
 | **Fé** | Recurso da facção (0–1000) vindo do clero; acalma as províncias e paga ritos. |
 | **Magia** | Recurso da facção (0–1000) vindo do desenvolvimento; paga ritos, mas acumulada assusta o povo. |
+| **Corrupção** | Perda mensal de 2% do ouro guardado; impede o tesouro de crescer sem limite. |
+| **Decreto** | Rito pago só com ouro (obras, festivais, doações). |
 | **Rito** | Ação do jogador paga com fé, magia e/ou ouro, definida em `content/rites.ron`. |
 | **Evento** | Acontecimento orientado a dados (condições + chance + efeitos), às vezes com escolhas. |
 | **Modificador** | Bônus/malus temporário aplicado a uma entidade (magia, fé, clima etc.). |
