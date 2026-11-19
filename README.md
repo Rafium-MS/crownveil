@@ -41,6 +41,9 @@ cargo run -p crownveil-cli --bin crownveil-repl
 # interface gráfica
 cargo run -p crownveil-client
 
+# balanceamento: 200 partidas de 100 anos e relatório de eventos/economia
+cargo run --release -p crownveil-cli --bin crownveil-batch -- --runs 200
+
 # testes (determinismo, comandos, economia, guerra e UI)
 cargo test
 
@@ -89,6 +92,7 @@ salvamento rápido em `~/.local/share/crownveil/saves/`.
 - [Registro de decisões (ADR)](docs/06-adr.md)
 - [Glossário](docs/07-glossary.md)
 - [M4 — Mapa 2D](docs/08-m4-mapa.md)
+- [Balanceamento em lote](docs/09-balanceamento.md)
 
 ## Licença
 

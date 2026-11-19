@@ -9,6 +9,7 @@ cargo run -p crownveil-cli                     # 100 anos, seed 1
 cargo run -p crownveil-cli -- 50 42            # 50 anos, seed 42
 cargo run -p crownveil-cli --bin crownveil-repl  # modo interativo (comandos)
 cargo run -p crownveil-client                  # interface gráfica (egui)
+cargo run --release -p crownveil-cli --bin crownveil-batch -- --runs 200  # balanceamento em lote
 cargo test                                     # testes do workspace
 cargo fmt --all
 cargo clippy --workspace --all-targets -- -D warnings
@@ -52,6 +53,8 @@ sim  <-  content  <-  cli
 - Novo tipo de dado de conteúdo: `crates/content/src/lib.rs` + arquivo em
   `content/`.
 - Novo comando/report: `crates/cli/src/main.rs`.
+- Mudou números de conteúdo ou de regra: rode `crownveil-batch` antes e depois
+  e registre achados relevantes em `docs/09-balanceamento.md`.
 - Mudança de UI: `crates/client/src/app.rs` (estado/relógio) e `main.rs`
   (janela). Regra de jogo continua em `sim`.
 - Mudança em tipos salvos (`World` e o que ele contém): se não couber em um

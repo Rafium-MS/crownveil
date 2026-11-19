@@ -17,3 +17,7 @@ path = "src/main.rs"
 [[bin]]
 name = "crownveil-repl"
 path = "src/bin/repl.rs"
+
+[[bin]]
+name = "crownveil-batch"
+path = "src/bin/batch.rs"

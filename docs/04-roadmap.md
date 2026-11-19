@@ -66,7 +66,7 @@ divertido (ou pelo menos testado) headless.
 
 - [x] Save/load versionado (`content::save`, REPL `save`/`load`, UI F5/F9)
 - [x] Migração de saves (cadeia em `save/migrations.rs` + saves congelados por versão)
-- [ ] Balanceamento assistido por simulação em lote
+- [x] Balanceamento assistido por simulação em lote (`crownveil-batch`, ver `09-balanceamento.md`)
 - [ ] Acessibilidade, atalhos e configurações
 - [ ] Builds de release para Linux (e depois outras plataformas)
 

@@ -195,7 +195,7 @@
             title: "Colheita Farta",
             description: "Os celeiros transbordam e o povo agradece aos céus.",
             scope: Province,
-            chance: 6,
+            chance: 3,
             cooldown_months: 36,
             conditions: [NoFamine, UnrestBelow(50), LacksModifier("seca")],
             effects: [AddModifier("colheita_farta", Some(12))],
@@ -267,6 +267,7 @@
             scope: Province,
             chance: 1,
             cooldown_months: 240,
+            conditions: [ManaAtLeast(250)],
             effects: [Unrest(10), AddModifier("veu_rasgado", Some(36))],
             options: [
                 (
@@ -330,7 +331,7 @@
             title: "Profeta Errante",
             description: "Um profeta descalço prega nas praças, anunciando o fim do Véu. Multidões o seguem.",
             scope: Province,
-            chance: 4,
+            chance: 2,
             cooldown_months: 120,
             conditions: [ClergyAtLeast(300)],
             effects: [Unrest(3)],
