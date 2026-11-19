@@ -1,0 +1,26 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/sim",
+    "crates/content",
+    "crates/cli",
+    "crates/client",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = "1.80"
+
+[workspace.dependencies]
+crownveil-sim = { path = "crates/sim" }
+crownveil-content = { path = "crates/content" }
+serde = { version = "1", features = ["derive"] }
+ron = "0.8"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2

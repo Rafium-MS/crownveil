@@ -1,0 +1,11 @@
+[package]
+name = "crownveil-client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+crownveil-sim.workspace = true
+crownveil-content.workspace = true
+eframe = "0.30.0"

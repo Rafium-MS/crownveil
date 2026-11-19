@@ -1,0 +1,19 @@
+[package]
+name = "crownveil-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+default-run = "crownveil-headless"
+
+[dependencies]
+crownveil-content.workspace = true
+crownveil-sim.workspace = true
+
+[[bin]]
+name = "crownveil-headless"
+path = "src/main.rs"
+
+[[bin]]
+name = "crownveil-repl"
+path = "src/bin/repl.rs"
