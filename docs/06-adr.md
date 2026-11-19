@@ -117,3 +117,20 @@ vocabulário; ampliar o vocabulário exige mudar `sim` e o espelho em `content`.
 A decomposição de descontentamento ganha a parcela `modificadores`. Mudar a
 ordem ou a chance dos eventos altera as partidas de uma seed, mas não o
 determinismo.
+
+## ADR-0011 — Jogador como parte do estado e escolhas por comando
+
+**Contexto:** eventos com escolhas precisam esperar o jogador, enquanto as
+outras facções decidem sozinhas. Quem é o jogador muda o resultado da partida.
+
+**Decisão:** `World.player: Option<FactionId>` faz parte do estado e só muda
+por `Command::SetPlayer`. Quando um evento com opções atinge a facção do
+jogador, vira uma `PendingDecision`, resolvida por `Command::ChooseOption` no
+início do próximo tick. Facções da IA escolhem a primeira opção na hora; se o
+jogador não responder em 12 meses, a primeira opção também é aplicada.
+
+**Consequências:** replays continuam determinísticos (a escolha é um comando);
+o autor de conteúdo controla o comportamento da IA pela ordem das opções; a
+escolha só faz efeito no mês seguinte, então a UI esconde decisões já
+respondidas. Uma IA que avalie as opções fica para depois e pode substituir a
+regra "primeira opção" sem mudar o formato de conteúdo.

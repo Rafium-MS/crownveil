@@ -15,7 +15,8 @@ determinística em ticks mensais com economia, comida/fome, diplomacia e guerra,
 mais uma interface gráfica em `egui`/`eframe` com pausa, velocidades, painéis
 de facção/província, comandos básicos e mapa hexagonal 2D com overlays,
 seleção, tooltips, zoom e pan. Eventos e modificadores orientados a dados
-(pestes, colheitas, revoltas, presságios) aparecem na Crônica da UI.
+(pestes, colheitas, revoltas, presságios) aparecem na Crônica da UI; vários
+deles são dilemas em que o jogador escolhe a resposta.
 
 ## Requisitos
 
@@ -45,14 +46,17 @@ cargo clippy --workspace --all-targets -- -D warnings
 ```
 
 No REPL, os comandos são: `status`, `provinces`, `tax`, `recruit`, `disband`,
-`war`, `peace`, `attack`, `wars`, `events`, `step`, `explain`, `help` e
-`quit`. Use
+`war`, `peace`, `attack`, `wars`, `events`, `decisions`, `choose`, `player`,
+`step`, `explain`, `help` e `quit`. O REPL joga com a facção 0; `step` para
+quando surge uma decisão, e `choose <decisão> <opção>` responde. Use
 `step N` para aplicar os comandos enfileirados e avançar `N` meses.
 
 Na UI: **Continuar/Pausar**, **+1 mês**, velocidades 1x–8x, seleção de facção
 jogável e de província, além de botões para imposto, recrutamento, guerra, paz
 e ataque. No mapa: clique para selecionar, arraste para mover, use o scroll para
 zoom e troque a camada entre **Dono**, **Descontentamento** e **População**.
+Quando um evento exige uma escolha da sua facção, o jogo pausa e abre uma
+janela de decisão; passe o mouse sobre as opções para ver os efeitos.
 
 ## Estrutura do workspace
 

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::command::Command;
 use crate::diplomacy::Diplomacy;
-use crate::event::{EventCooldown, EventDef, EventId, EventRecord, EventTarget};
+use crate::event::{EventCooldown, EventDef, EventId, EventRecord, EventTarget, PendingDecision};
 use crate::modifier::{ActiveModifier, ModifierDef, ModifierId};
 use crate::rng::Rng;
 use crate::rules::{self, UnrestExplanation};
@@ -136,6 +136,13 @@ pub struct World {
     pub event_log: Vec<EventRecord>,
     #[serde(default)]
     pub event_cooldowns: Vec<EventCooldown>,
+    /// Faction whose event choices wait for input; everyone else is AI.
+    #[serde(default)]
+    pub player: Option<FactionId>,
+    #[serde(default)]
+    pub pending_decisions: Vec<PendingDecision>,
+    #[serde(default)]
+    pub next_decision_id: u64,
 }
 
 impl World {
@@ -154,6 +161,9 @@ impl World {
             events: Vec::new(),
             event_log: Vec::new(),
             event_cooldowns: Vec::new(),
+            player: None,
+            pending_decisions: Vec::new(),
+            next_decision_id: 0,
         }
     }
 
@@ -163,12 +173,29 @@ impl World {
         self
     }
 
+    pub fn with_player(mut self, player: Option<FactionId>) -> Self {
+        self.player = player.filter(|&id| id < self.factions.len());
+        self
+    }
+
+    pub fn decisions_for(&self, faction: FactionId) -> impl Iterator<Item = &PendingDecision> {
+        self.pending_decisions
+            .iter()
+            .filter(move |pending| pending.faction == faction)
+    }
+
     pub fn modifier_def(&self, id: ModifierId) -> Option<&ModifierDef> {
         self.modifiers.get(id)
     }
 
     pub fn event_def(&self, id: EventId) -> Option<&EventDef> {
         self.events.get(id)
+    }
+
+    pub fn choice_label(&self, record: &EventRecord) -> Option<&str> {
+        let choice = record.choice?;
+        let option = self.event_def(record.event)?.options.get(choice)?;
+        Some(option.label.as_str())
     }
 
     pub fn target_name(&self, target: EventTarget) -> &str {

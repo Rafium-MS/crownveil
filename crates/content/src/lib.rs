@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 
 use crownveil_sim::{
-    Condition, Effect, EventDef, EventScope, Faction, ModifierDef, ModifierEffects, Pops, Province,
-    ProvinceId, World,
+    Condition, Effect, EventDef, EventOption, EventScope, Faction, ModifierDef, ModifierEffects,
+    Pops, Province, ProvinceId, World,
 };
 use serde::Deserialize;
 
@@ -120,6 +120,16 @@ pub struct EventData {
     pub cooldown_months: i64,
     #[serde(default)]
     pub conditions: Vec<ConditionData>,
+    #[serde(default)]
+    pub effects: Vec<EffectData>,
+    #[serde(default)]
+    pub options: Vec<OptionData>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OptionData {
+    pub label: String,
+    #[serde(default)]
     pub effects: Vec<EffectData>,
 }
 
@@ -311,8 +321,20 @@ fn convert_event(
     if event.cooldown_months < 0 {
         return Err(invalid("cooldown_months não pode ser negativo"));
     }
-    if event.effects.is_empty() {
-        return Err(invalid("evento precisa de ao menos um efeito"));
+    if event.effects.is_empty() && event.options.is_empty() {
+        return Err(invalid("evento precisa de efeitos ou opções"));
+    }
+    if event.options.len() == 1 {
+        return Err(invalid(
+            "evento com escolha precisa de ao menos duas opções",
+        ));
+    }
+    if event
+        .options
+        .iter()
+        .any(|option| option.label.trim().is_empty())
+    {
+        return Err(invalid("toda opção precisa de um texto (label)"));
     }
 
     let modifier = |key: &String| {
@@ -353,9 +375,41 @@ fn convert_event(
         conditions.push(condition);
     }
 
-    let mut effects = Vec::with_capacity(event.effects.len());
-    for effect in &event.effects {
-        effects.push(match effect {
+    let effects = convert_effects(&event.effects, &event.key, &modifier)?;
+    let mut options = Vec::with_capacity(event.options.len());
+    for option in &event.options {
+        options.push(EventOption {
+            label: option.label.clone(),
+            effects: convert_effects(&option.effects, &event.key, &modifier)?,
+        });
+    }
+
+    Ok(EventDef {
+        key: event.key.clone(),
+        title: event.title.clone(),
+        description: event.description.clone(),
+        scope: event.scope,
+        chance: event.chance,
+        cooldown_months: event.cooldown_months,
+        conditions,
+        effects,
+        options,
+    })
+}
+
+fn convert_effects(
+    effects: &[EffectData],
+    event: &str,
+    modifier: &impl Fn(&String) -> Result<usize, LoadError>,
+) -> Result<Vec<Effect>, LoadError> {
+    let invalid = |reason| LoadError::InvalidValue {
+        event: event.to_string(),
+        reason,
+    };
+
+    let mut converted = Vec::with_capacity(effects.len());
+    for effect in effects {
+        converted.push(match effect {
             EffectData::Unrest(v) => Effect::Unrest(*v),
             EffectData::Development(v) => Effect::Development(*v),
             EffectData::Population(v) => {
@@ -379,17 +433,7 @@ fn convert_event(
             EffectData::RemoveModifier(key) => Effect::RemoveModifier(modifier(key)?),
         });
     }
-
-    Ok(EventDef {
-        key: event.key.clone(),
-        title: event.title.clone(),
-        description: event.description.clone(),
-        scope: event.scope,
-        chance: event.chance,
-        cooldown_months: event.cooldown_months,
-        conditions,
-        effects,
-    })
+    Ok(converted)
 }
 
 #[cfg(test)]
@@ -459,6 +503,38 @@ mod tests {
         assert!(matches!(
             events_world(source),
             Err(LoadError::ProvinceConditionInFactionEvent { .. })
+        ));
+    }
+
+    #[test]
+    fn bundled_events_include_choices() {
+        let world = events_world(EVENTS).unwrap();
+        assert!(world.events.iter().any(|event| event.options.len() >= 2));
+    }
+
+    #[test]
+    fn single_option_is_rejected() {
+        let source = r#"(
+            events: [(key: "e", title: "E", scope: Province, chance: 1,
+                      options: [(label: "Só esta", effects: [Treasury(1)])])],
+        )"#;
+        assert!(matches!(
+            events_world(source),
+            Err(LoadError::InvalidValue { .. })
+        ));
+    }
+
+    #[test]
+    fn unknown_modifier_inside_option_is_rejected() {
+        let source = r#"(
+            events: [(key: "e", title: "E", scope: Province, chance: 1, options: [
+                (label: "A", effects: [Treasury(1)]),
+                (label: "B", effects: [AddModifier("nada", None)]),
+            ])],
+        )"#;
+        assert!(matches!(
+            events_world(source),
+            Err(LoadError::UnknownModifier { .. })
         ));
     }
 

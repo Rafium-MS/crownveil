@@ -8,6 +8,10 @@ pub type EventId = usize;
 
 pub const CHANCE_SCALE: i64 = 1000;
 pub const EVENT_LOG_LIMIT: usize = 200;
+/// Months the player has to answer before the default (first) option applies.
+pub const DECISION_DEADLINE_MONTHS: i64 = 12;
+
+pub type DecisionId = u64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EventScope {
@@ -82,7 +86,29 @@ pub struct EventDef {
     pub chance: i64,
     pub cooldown_months: i64,
     pub conditions: Vec<Condition>,
+    /// Applied as soon as the event fires, before any choice.
     pub effects: Vec<Effect>,
+    /// Empty means the event resolves on its own. Otherwise the deciding faction
+    /// picks one; the first option is the AI's pick and the timeout default.
+    #[serde(default)]
+    pub options: Vec<EventOption>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EventOption {
+    pub label: String,
+    pub effects: Vec<Effect>,
+}
+
+/// A choice waiting for the player. The decider is fixed when the event fires,
+/// so losing the province afterwards does not hand the choice to someone else.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PendingDecision {
+    pub id: DecisionId,
+    pub event: EventId,
+    pub target: EventTarget,
+    pub faction: FactionId,
+    pub deadline: i64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -97,6 +123,8 @@ pub struct EventRecord {
     pub month: u32,
     pub event: EventId,
     pub target: EventTarget,
+    #[serde(default)]
+    pub choice: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -127,6 +155,7 @@ pub fn fire_events(world: &mut World) {
     world
         .event_cooldowns
         .retain(|cooldown| cooldown.until > now);
+    expire_decisions(world, now);
 
     for event_id in 0..world.events.len() {
         let targets: Vec<EventTarget> = match world.events[event_id].scope {
@@ -168,24 +197,106 @@ pub fn trigger_event(world: &mut World, event_id: EventId, target: EventTarget) 
     };
     let effects = event.effects.clone();
     let cooldown = event.cooldown_months;
+    let has_options = !event.options.is_empty();
 
     for effect in &effects {
         apply_effect(world, target, effect);
     }
 
+    let now = absolute_month(world);
     if cooldown > 0 {
         world.event_cooldowns.push(EventCooldown {
             event: event_id,
             target,
-            until: absolute_month(world) + cooldown,
+            until: now + cooldown,
         });
     }
 
+    if !has_options {
+        log_event(world, event_id, target, None);
+        return;
+    }
+
+    let Some(decider) = target_faction(world, target) else {
+        return;
+    };
+    if world.player == Some(decider) {
+        let id = world.next_decision_id;
+        world.next_decision_id += 1;
+        world.pending_decisions.push(PendingDecision {
+            id,
+            event: event_id,
+            target,
+            faction: decider,
+            deadline: now + DECISION_DEADLINE_MONTHS,
+        });
+    } else {
+        resolve_option(world, event_id, target, 0);
+    }
+}
+
+/// Resolves a pending decision for `faction`. Returns `false` (and changes
+/// nothing) if the decision does not exist, belongs to another faction or the
+/// option is out of range.
+pub fn choose_option(
+    world: &mut World,
+    faction: FactionId,
+    decision: DecisionId,
+    option: usize,
+) -> bool {
+    let Some(index) = world
+        .pending_decisions
+        .iter()
+        .position(|pending| pending.id == decision && pending.faction == faction)
+    else {
+        return false;
+    };
+    let pending = &world.pending_decisions[index];
+    let option_count = world
+        .events
+        .get(pending.event)
+        .map_or(0, |event| event.options.len());
+    if option >= option_count {
+        return false;
+    }
+
+    let pending = world.pending_decisions.remove(index);
+    resolve_option(world, pending.event, pending.target, option);
+    true
+}
+
+fn expire_decisions(world: &mut World, now: i64) {
+    let (expired, waiting): (Vec<_>, Vec<_>) = std::mem::take(&mut world.pending_decisions)
+        .into_iter()
+        .partition(|pending| pending.deadline <= now);
+    world.pending_decisions = waiting;
+    for pending in expired {
+        resolve_option(world, pending.event, pending.target, 0);
+    }
+}
+
+fn resolve_option(world: &mut World, event_id: EventId, target: EventTarget, option: usize) {
+    let Some(effects) = world
+        .events
+        .get(event_id)
+        .and_then(|event| event.options.get(option))
+        .map(|option| option.effects.clone())
+    else {
+        return;
+    };
+    for effect in &effects {
+        apply_effect(world, target, effect);
+    }
+    log_event(world, event_id, target, Some(option));
+}
+
+fn log_event(world: &mut World, event: EventId, target: EventTarget, choice: Option<usize>) {
     world.event_log.push(EventRecord {
         year: world.year,
         month: world.month,
-        event: event_id,
+        event,
         target,
+        choice,
     });
     if world.event_log.len() > EVENT_LOG_LIMIT {
         let excess = world.event_log.len() - EVENT_LOG_LIMIT;

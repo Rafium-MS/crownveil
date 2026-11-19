@@ -19,6 +19,7 @@ consequência às decisões, não para estarem balanceadas.
   (com meses restantes ou permanente) em uma província ou facção.
 - `EventDef`: evento com escopo, chance, cooldown, condições e efeitos;
   `event_log` guarda os últimos 200 eventos ocorridos.
+- `PendingDecision`: escolha aguardando o jogador (`World.player`), com prazo.
 
 Todas as quantias usam `i64`. Não há ponto flutuante na simulação.
 
@@ -37,6 +38,8 @@ valores limitados (imposto é `clamp`ado em 0–100).
 | `DeclareWar { attacker, defender }` | Declara guerra se não houver guerra/trégua entre eles |
 | `MakePeace { faction, other }` | Encerra a guerra e inicia trégua de 24 meses |
 | `Attack { faction, province }` | Tenta tomar uma província inimiga em guerra |
+| `SetPlayer { faction }` | Define a facção do jogador (`None` = todas com a IA) |
+| `ChooseOption { faction, decision, option }` | Resolve uma decisão pendente da facção |
 
 O jogador emite comandos pelo REPL (`crownveil-repl`). A UI futura emitirá os
 mesmos comandos.
@@ -57,9 +60,12 @@ mesmos comandos.
 7. **Tick da diplomacia**: contar tréguas e aproximar relações de 0 em paz.
 8. **Choques aleatórios** de descontentamento.
 9. **Modificadores**: decrementa a duração e remove os que chegaram a 0.
-10. **Eventos**: para cada evento (em ordem) e cada alvo (em ordem), se não
+10. **Eventos**: primeiro resolve, com a primeira opção, as decisões cujo prazo
+    venceu. Depois, para cada evento (em ordem) e cada alvo (em ordem), se não
     estiver em cooldown e todas as condições valerem, rola `rng(0..999) <
-    chance`; se passar, aplica os efeitos, registra cooldown e entra no log.
+    chance`; se passar, aplica os efeitos, registra cooldown e então: sem
+    opções, entra no log; com opções, a IA aplica a primeira opção na hora ou,
+    se a facção que decide for a do jogador, cria uma decisão pendente.
 
 ## Economia e população
 
@@ -175,6 +181,15 @@ fim do mês *T+N*.
   na facção (dona, no escopo de província); `AddModifier`/`RemoveModifier`
   agem no próprio alvo.
 
+### Escolhas
+
+- A facção que decide é a dona da província (escopo `Province`) ou a própria
+  facção (escopo `Faction`), fixada no momento do evento.
+- `effects` do evento valem na hora; os `effects` da opção, quando decidida.
+- O jogador tem 12 meses (`DECISION_DEADLINE_MONTHS`); depois vale a primeira
+  opção. Escolhas inválidas (outra facção, opção inexistente) são ignoradas.
+- O log registra o evento quando ele é resolvido, com `choice: Some(índice)`.
+
 ## Diplomacia
 
 - Relações são simétricas, em −100..100, e começam em 0.
@@ -244,7 +259,7 @@ parte do contrato de determinismo.
 - **Diplomacia profunda**: alianças, casamentos, vassalagem, casus belli.
 - **Guerra no mapa**: exércitos em províncias, cercos, frentes e suprimento.
 - **Negociação de paz**: aceitação baseada em desgaste, não comando imediato.
-- **Eventos com escolhas**: opções com efeitos diferentes para o jogador.
+- **IA de escolhas**: avaliar opções em vez de sempre pegar a primeira.
 - **Fé e magia**: recursos e modificadores que interagem com legitimidade e
   produção.
 - **Comida explícita**: estoques, colheitas e rotas de suprimento.

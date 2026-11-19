@@ -99,6 +99,16 @@ fn apply_commands(world: &mut World) {
             Command::Attack { faction, province } => {
                 resolve_attack(world, faction, province);
             }
+            Command::SetPlayer { faction } => {
+                world.player = faction.filter(|&id| id < world.factions.len());
+            }
+            Command::ChooseOption {
+                faction,
+                decision,
+                option,
+            } => {
+                event::choose_option(world, faction, decision, option);
+            }
         }
     }
 }

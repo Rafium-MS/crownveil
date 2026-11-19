@@ -107,7 +107,27 @@ facções).
 | `chance` | Chance mensal por alvo, em milésimos (0–1000) |
 | `cooldown_months` | Meses até repetir no mesmo alvo; padrão 120 |
 | `conditions` | Todas precisam valer (opcional) |
-| `effects` | Pelo menos um |
+| `effects` | Aplicados quando o evento ocorre (opcional se houver `options`) |
+| `options` | Escolhas: `(label: "...", effects: [...])`; zero ou pelo menos duas |
+
+Com `options`, a facção que decide escolhe uma. **A primeira opção é a escolha
+da IA** e a padrão quando o jogador não responde em 12 meses; ordene as opções
+pensando nisso.
+
+```ron
+(
+    key: "profeta_errante",
+    title: "Profeta Errante",
+    scope: Province,
+    chance: 4,
+    conditions: [ClergyAtLeast(300)],
+    effects: [Unrest(3)],
+    options: [
+        (label: "Acolher o profeta", effects: [AddModifier("fervor_religioso", Some(24))]),
+        (label: "Expulsá-lo da província", effects: [Unrest(4), Legitimacy(1)]),
+    ],
+)
+```
 
 Condições: `UnrestAtLeast(n)`, `UnrestBelow(n)`, `DevelopmentAtLeast(n)`,
 `DevelopmentBelow(n)`, `ClergyAtLeast(n)`, `Famine`, `NoFamine` (só
@@ -121,7 +141,8 @@ permanente), `RemoveModifier("k")`.
 
 O loader rejeita chaves duplicadas, modificadores desconhecidos, condições de
 província em eventos de facção, `chance` fora de 0–1000, cooldown negativo,
-duração não positiva, `Population` abaixo de −100 e eventos sem efeitos.
+duração não positiva, `Population` abaixo de −100, eventos sem efeitos nem
+opções, eventos com uma única opção e opções sem `label`.
 
 ### Diplomacia
 
@@ -131,7 +152,6 @@ tréguas iniciais entrarão como um bloco opcional `diplomacy`.
 
 ## Evolução planejada
 
-- **Eventos com escolhas**: opções com efeitos e custos diferentes.
 - **Culturas e raças** (`content/cultures/`): tags que afetam crescimento,
   produção e descontentamento.
 - **Localização** (`content/loc/`): textos separados dos identificadores.

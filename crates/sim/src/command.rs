@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::event::DecisionId;
 use crate::world::{FactionId, ProvinceId};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -27,5 +28,14 @@ pub enum Command {
     Attack {
         faction: FactionId,
         province: ProvinceId,
+    },
+    /// `None` hands every faction to the AI.
+    SetPlayer {
+        faction: Option<FactionId>,
+    },
+    ChooseOption {
+        faction: FactionId,
+        decision: DecisionId,
+        option: usize,
     },
 }

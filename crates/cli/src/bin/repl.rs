@@ -1,11 +1,13 @@
 use std::io::{self, BufRead, Write};
 
 use crownveil_content::{load_events, load_world};
-use crownveil_sim::{food_capacity, ActiveModifier, Command, World};
+use crownveil_sim::event::absolute_month;
+use crownveil_sim::{food_capacity, ActiveModifier, Command, FactionId, World};
 
 const WORLD_SOURCE: &str = include_str!("../../../../content/world.ron");
 const EVENTS_SOURCE: &str = include_str!("../../../../content/events.ron");
 const DEFAULT_EVENT_COUNT: usize = 10;
+const DEFAULT_PLAYER: FactionId = 0;
 
 fn main() {
     let seed = std::env::args()
@@ -15,14 +17,14 @@ fn main() {
 
     let mut world =
         match load_world(WORLD_SOURCE, seed).and_then(|world| load_events(EVENTS_SOURCE, world)) {
-            Ok(world) => world,
+            Ok(world) => world.with_player(Some(DEFAULT_PLAYER)),
             Err(error) => {
                 eprintln!("erro ao carregar conteúdo: {error}");
                 std::process::exit(1);
             }
         };
 
-    println!("Crownveil REPL — seed {seed}");
+    println!("Crownveil REPL — seed {seed}, jogando com a facção {DEFAULT_PLAYER}");
     print_help();
 
     let stdin = io::stdin();
@@ -123,12 +125,56 @@ fn main() {
                     .get(1)
                     .and_then(|value| value.parse().ok())
                     .unwrap_or(1);
+                let mut advanced = 0;
+                let decisions_before = world.next_decision_id;
                 for _ in 0..months {
                     world.tick_month();
+                    advanced += 1;
+                    if world.next_decision_id != decisions_before {
+                        break;
+                    }
                 }
-                println!("avançou {months} mês(es)");
+                println!("avançou {advanced} mês(es)");
                 print_status(&world);
+                print_decisions(&world);
             }
+            "decisions" => print_decisions(&world),
+            "choose" => match (
+                parts.get(1).and_then(|value| value.parse().ok()),
+                parts.get(2).and_then(|value| value.parse::<usize>().ok()),
+            ) {
+                (Some(decision), Some(option)) if option >= 1 => match world.player {
+                    Some(faction) => {
+                        world.queue_command(Command::ChooseOption {
+                            faction,
+                            decision,
+                            option: option - 1,
+                        });
+                        println!("escolha {option} da decisão {decision} enfileirada");
+                    }
+                    None => println!("nenhuma facção está sob controle do jogador"),
+                },
+                _ => println!("uso: choose <decisão> <opção (1, 2, ...)>"),
+            },
+            "player" => match parts.get(1).copied() {
+                Some("none") => {
+                    world.queue_command(Command::SetPlayer { faction: None });
+                    println!("todas as facções passarão para a IA no próximo tick");
+                }
+                Some(value) => match value.parse() {
+                    Ok(faction) => {
+                        world.queue_command(Command::SetPlayer {
+                            faction: Some(faction),
+                        });
+                        println!("controle da facção {faction} enfileirado");
+                    }
+                    Err(_) => println!("uso: player <facção|none>"),
+                },
+                None => match world.player {
+                    Some(faction) => println!("jogando com a facção {faction}"),
+                    None => println!("todas as facções estão com a IA"),
+                },
+            },
             "explain" => match parts.get(1).and_then(|value| value.parse().ok()) {
                 Some(province) => print_explanation(&world, province),
                 None => println!("uso: explain <província>"),
@@ -150,9 +196,12 @@ fn print_help() {
     println!("  peace <facção> <outra> encerra a guerra e inicia trégua");
     println!("  attack <facção> <prov> ataca uma província inimiga");
     println!("  wars                   lista guerras ativas");
-    println!("  step <meses>           avança a simulação (padrão: 1)");
+    println!("  step <meses>           avança a simulação (padrão: 1); para em nova decisão");
     println!("  explain <província>    explica o descontentamento e mostra modificadores");
     println!("  events [n]             mostra os últimos n eventos (padrão: 10)");
+    println!("  decisions              lista decisões pendentes do jogador");
+    println!("  choose <dec> <opção>   escolhe uma opção (aplicada no próximo tick)");
+    println!("  player [facção|none]   mostra ou troca a facção do jogador");
     println!("  help                   mostra esta ajuda");
     println!("  quit                   sai");
 }
@@ -287,5 +336,35 @@ fn print_events(world: &World, count: usize) {
         if !event.description.is_empty() {
             println!("      {}", event.description);
         }
+        if let Some(label) = world.choice_label(record) {
+            println!("      escolha: {label}");
+        }
+    }
+}
+
+fn print_decisions(world: &World) {
+    let Some(player) = world.player else {
+        return;
+    };
+    for pending in world.decisions_for(player) {
+        let Some(event) = world.event_def(pending.event) else {
+            continue;
+        };
+        let now = absolute_month(world);
+        println!();
+        println!(
+            "  ** Decisão {}: {} — {} (prazo: {} meses)",
+            pending.id,
+            event.title,
+            world.target_name(pending.target),
+            pending.deadline - now
+        );
+        if !event.description.is_empty() {
+            println!("     {}", event.description);
+        }
+        for (index, option) in event.options.iter().enumerate() {
+            println!("     {}. {}", index + 1, option.label);
+        }
+        println!("     use: choose {} <opção>", pending.id);
     }
 }

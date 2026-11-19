@@ -3,6 +3,10 @@
 // chance: probabilidade mensal por alvo, em milésimos (10 = 1% ao mês).
 // cooldown_months: meses até o mesmo evento poder ocorrer de novo no mesmo alvo
 // (padrão 120).
+// effects: aplicados assim que o evento ocorre.
+// options: escolhas da facção que decide (a dona da província, no escopo de
+// província). A primeira opção é a escolha da IA e a padrão se o jogador não
+// responder em 12 meses.
 (
     modifiers: [
         (
@@ -62,6 +66,36 @@
             income_pct: -10,
         ),
         (
+            key: "quarentena",
+            name: "Quarentena",
+            unrest: 4,
+            income_pct: -30,
+        ),
+        (
+            key: "concessoes",
+            name: "Concessões ao Povo",
+            unrest: -12,
+            income_pct: -15,
+        ),
+        (
+            key: "arcanistas",
+            name: "Colégio de Arcanistas",
+            unrest: 2,
+            income_pct: 20,
+        ),
+        (
+            key: "fervor_religioso",
+            name: "Fervor Religioso",
+            unrest: -6,
+            income_pct: -5,
+        ),
+        (
+            key: "corte_dividida",
+            name: "Corte Dividida",
+            income_pct: -10,
+            legitimacy: -1,
+        ),
+        (
             key: "era_dourada",
             name: "Era Dourada",
             unrest: -5,
@@ -82,6 +116,20 @@
                 Population(-8),
                 Unrest(10),
                 AddModifier("peste_cinzenta", Some(18)),
+            ],
+            options: [
+                (
+                    label: "Rezar e esperar que passe",
+                    effects: [Population(-4), Unrest(5)],
+                ),
+                (
+                    label: "Fechar os portões (quarentena)",
+                    effects: [Treasury(-150), AddModifier("quarentena", Some(12))],
+                ),
+                (
+                    label: "Culpar os feiticeiros",
+                    effects: [Population(-4), Unrest(-8), Legitimacy(-3)],
+                ),
             ],
         ),
         (
@@ -112,12 +160,25 @@
             chance: 40,
             cooldown_months: 36,
             conditions: [UnrestAtLeast(70)],
-            effects: [
-                Population(-3),
-                Development(-2),
-                Treasury(-100),
-                Legitimacy(-5),
-                AddModifier("revolta_esmagada", Some(24)),
+            effects: [Development(-2)],
+            options: [
+                (
+                    label: "Esmagar a revolta",
+                    effects: [
+                        Population(-3),
+                        Treasury(-100),
+                        Legitimacy(-5),
+                        AddModifier("revolta_esmagada", Some(24)),
+                    ],
+                ),
+                (
+                    label: "Negociar com os líderes",
+                    effects: [Treasury(-300), Unrest(-15), Legitimacy(-2)],
+                ),
+                (
+                    label: "Ceder às exigências",
+                    effects: [Legitimacy(-8), AddModifier("concessoes", Some(36))],
+                ),
             ],
         ),
         (
@@ -148,6 +209,20 @@
             chance: 1,
             cooldown_months: 240,
             effects: [Unrest(10), AddModifier("veu_rasgado", Some(36))],
+            options: [
+                (
+                    label: "Convocar magos para estudar a fenda",
+                    effects: [Treasury(-100), AddModifier("arcanistas", Some(60))],
+                ),
+                (
+                    label: "Selar a fenda a qualquer custo",
+                    effects: [Treasury(-400), RemoveModifier("veu_rasgado")],
+                ),
+                (
+                    label: "Proibir qualquer contato",
+                    effects: [Unrest(5)],
+                ),
+            ],
         ),
         (
             key: "cometa_rubro",
@@ -167,10 +242,44 @@
             chance: 15,
             cooldown_months: 120,
             conditions: [LegitimacyBelow(35)],
-            effects: [
-                Legitimacy(-5),
-                Treasury(-200),
-                AddModifier("crise_sucessao", Some(36)),
+            effects: [AddModifier("crise_sucessao", Some(36))],
+            options: [
+                (
+                    label: "Apoiar o herdeiro legítimo",
+                    effects: [Treasury(-300), Legitimacy(5)],
+                ),
+                (
+                    label: "Deixar a corte decidir",
+                    effects: [Legitimacy(-5), AddModifier("corte_dividida", Some(24))],
+                ),
+                (
+                    label: "Arranjar um casamento entre os pretendentes",
+                    effects: [Treasury(-150), RemoveModifier("crise_sucessao"), Legitimacy(-2)],
+                ),
+            ],
+        ),
+        (
+            key: "profeta_errante",
+            title: "Profeta Errante",
+            description: "Um profeta descalço prega nas praças, anunciando o fim do Véu. Multidões o seguem.",
+            scope: Province,
+            chance: 4,
+            cooldown_months: 120,
+            conditions: [ClergyAtLeast(300)],
+            effects: [Unrest(3)],
+            options: [
+                (
+                    label: "Acolher o profeta",
+                    effects: [AddModifier("fervor_religioso", Some(24))],
+                ),
+                (
+                    label: "Expulsá-lo da província",
+                    effects: [Unrest(4), Legitimacy(1)],
+                ),
+                (
+                    label: "Prendê-lo e julgá-lo por heresia",
+                    effects: [Unrest(10), Legitimacy(3)],
+                ),
             ],
         ),
         (

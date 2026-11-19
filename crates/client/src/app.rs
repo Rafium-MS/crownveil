@@ -1,6 +1,10 @@
 use crownveil_content::{load_events, load_world_with_map, MapLayout, MapPosition};
+use std::collections::BTreeSet;
+
+use crownveil_sim::event::absolute_month;
 use crownveil_sim::{
-    food_capacity, ActiveModifier, Command, FactionId, Province, ProvinceId, World,
+    food_capacity, ActiveModifier, Command, DecisionId, Effect, EventTarget, FactionId, Province,
+    ProvinceId, World,
 };
 use eframe::egui;
 
@@ -156,6 +160,10 @@ pub struct CrownveilApp {
     war_target: FactionId,
     status: String,
     map_view: MapView,
+    /// Last player change sent to the simulation via `SetPlayer`.
+    requested_player: FactionId,
+    /// Choices already queued; hidden until the next tick resolves them.
+    answered: BTreeSet<DecisionId>,
 }
 
 impl CrownveilApp {
@@ -183,10 +191,14 @@ impl CrownveilApp {
 
     pub fn with_world_and_map(world: World, map_layout: MapLayout) -> Self {
         let war_target = if world.factions.len() > 1 { 1 } else { 0 };
+        let player = world.player.unwrap_or(0);
+        let world = world.with_player(Some(player));
         Self {
             world,
             map_layout,
-            player: 0,
+            player,
+            requested_player: player,
+            answered: BTreeSet::new(),
             paused: true,
             speed: 1,
             accumulator: 0.0,
@@ -212,14 +224,117 @@ impl CrownveilApp {
         }
 
         for _ in 0..months {
-            self.world.tick_month();
+            self.accumulator -= SECONDS_PER_MONTH;
+            if self.tick() {
+                self.accumulator = 0.0;
+                break;
+            }
         }
-        self.accumulator -= months as f64 * SECONDS_PER_MONTH;
     }
 
     fn step_once(&mut self) {
-        self.world.tick_month();
+        self.tick();
         self.accumulator = 0.0;
+    }
+
+    /// Ticks one month and pauses if the player got a new decision.
+    fn tick(&mut self) -> bool {
+        let decisions_before = self.world.next_decision_id;
+        self.world.tick_month();
+        let new_decision = self.world.next_decision_id != decisions_before;
+        if new_decision {
+            self.paused = true;
+            self.status = "Pausado: uma decisão aguarda sua escolha.".to_string();
+        }
+        new_decision
+    }
+
+    fn sync_player(&mut self) {
+        if self.player != self.requested_player {
+            self.world.queue_command(Command::SetPlayer {
+                faction: Some(self.player),
+            });
+            self.requested_player = self.player;
+        }
+        let world = &self.world;
+        self.answered.retain(|id| {
+            world
+                .pending_decisions
+                .iter()
+                .any(|pending| pending.id == *id)
+        });
+    }
+
+    fn decision_window(&mut self, ctx: &egui::Context) {
+        let Some(player) = self.world.player else {
+            return;
+        };
+        let Some(pending) = self
+            .world
+            .decisions_for(player)
+            .find(|pending| !self.answered.contains(&pending.id))
+            .cloned()
+        else {
+            return;
+        };
+        let Some(event) = self.world.event_def(pending.event).cloned() else {
+            return;
+        };
+        let target = self.world.target_name(pending.target).to_string();
+        let months_left = pending.deadline - absolute_month(&self.world);
+
+        let mut choice = None;
+        egui::Window::new(format!("Decisão — {}", event.title))
+            .id(egui::Id::new(("decision", pending.id)))
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+            .show(ctx, |ui| {
+                ui.set_max_width(420.0);
+                ui.strong(target.as_str());
+                if !event.description.is_empty() {
+                    ui.label(event.description.as_str());
+                }
+                if !event.effects.is_empty() {
+                    ui.small(format!(
+                        "Já aconteceu: {}",
+                        describe_effect_list(&self.world, &event.effects)
+                    ));
+                }
+                ui.separator();
+                for (index, option) in event.options.iter().enumerate() {
+                    let button = ui.add_sized(
+                        [ui.available_width(), 0.0],
+                        egui::Button::new(option.label.as_str()),
+                    );
+                    if button
+                        .on_hover_text(describe_effect_list(&self.world, &option.effects))
+                        .clicked()
+                    {
+                        choice = Some(index);
+                    }
+                }
+                ui.separator();
+                ui.small(format!(
+                    "Sem resposta em {months_left} meses, vale a primeira opção."
+                ));
+            });
+
+        if let Some(option) = choice {
+            self.world.queue_command(Command::ChooseOption {
+                faction: player,
+                decision: pending.id,
+                option,
+            });
+            self.answered.insert(pending.id);
+            self.status = format!(
+                "Escolha registrada: {}. Vale a partir do próximo mês.",
+                event.options[option].label
+            );
+            if let EventTarget::Province(id) = pending.target {
+                self.selected_province = Some(id);
+            }
+        }
     }
 
     fn normalize_target(&mut self) {
@@ -264,6 +379,14 @@ impl CrownveilApp {
                     self.world.diplomacy.wars.len()
                 ));
                 ui.separator();
+                let decisions = self
+                    .world
+                    .player
+                    .map_or(0, |player| self.world.decisions_for(player).count());
+                if decisions > 0 {
+                    ui.colored_label(UNREST_MID, format!("Decisões pendentes: {decisions}"));
+                    ui.separator();
+                }
 
                 let player_name = self.world.factions[self.player].name.clone();
                 egui::ComboBox::from_label("Jogador")
@@ -652,10 +775,13 @@ impl CrownveilApp {
                         continue;
                     };
                     let target = self.world.target_name(record.target);
-                    let label = format!(
+                    let mut label = format!(
                         "{}/{} — {}: {}",
                         record.month, record.year, event.title, target
                     );
+                    if let Some(choice) = self.world.choice_label(record) {
+                        label.push_str(&format!(" → {choice}"));
+                    }
                     let response = ui.selectable_label(false, label);
                     let response = if event.description.is_empty() {
                         response
@@ -701,6 +827,7 @@ impl CrownveilApp {
 impl eframe::App for CrownveilApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let delta_seconds = ctx.input(|input| input.stable_dt) as f64;
+        self.sync_player();
         self.advance(delta_seconds);
 
         self.top_bar(ctx);
@@ -708,6 +835,7 @@ impl eframe::App for CrownveilApp {
         self.factions_panel(ctx);
         self.details_panel(ctx);
         self.central_panel(ctx);
+        self.decision_window(ctx);
 
         if !self.paused {
             ctx.request_repaint();
@@ -743,6 +871,39 @@ fn describe_effects(active: &ActiveModifier) -> String {
     .map(|(value, label, suffix)| format!("{label} {value:+}{suffix}"))
     .collect();
     parts.join(", ")
+}
+
+fn describe_effect_list(world: &World, effects: &[Effect]) -> String {
+    if effects.is_empty() {
+        return "nenhum efeito".to_string();
+    }
+    effects
+        .iter()
+        .map(|effect| describe_effect(world, effect))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn describe_effect(world: &World, effect: &Effect) -> String {
+    let modifier_name = |id: usize| {
+        world
+            .modifier_def(id)
+            .map(|def| def.name.clone())
+            .unwrap_or_else(|| "?".to_string())
+    };
+    match effect {
+        Effect::Unrest(value) => format!("descontentamento {value:+}"),
+        Effect::Development(value) => format!("desenvolvimento {value:+}"),
+        Effect::Population(value) => format!("população {value:+}%"),
+        Effect::Legitimacy(value) => format!("legitimidade {value:+}"),
+        Effect::Treasury(value) => format!("tesouro {value:+}"),
+        Effect::Army(value) => format!("exército {value:+}"),
+        Effect::AddModifier { modifier, months } => match months {
+            Some(months) => format!("+ {} ({months} meses)", modifier_name(*modifier)),
+            None => format!("+ {} (permanente)", modifier_name(*modifier)),
+        },
+        Effect::RemoveModifier(modifier) => format!("remove {}", modifier_name(*modifier)),
+    }
 }
 
 fn hex_center(position: MapPosition) -> egui::Pos2 {
@@ -837,6 +998,69 @@ mod tests {
         let app = CrownveilApp::new();
         assert!(!app.world.events.is_empty());
         assert!(!app.world.modifiers.is_empty());
+    }
+
+    fn app_with_choice(chance: i64) -> CrownveilApp {
+        let event = crownveil_sim::EventDef {
+            key: "dilema".to_string(),
+            title: "Dilema".to_string(),
+            description: String::new(),
+            scope: crownveil_sim::EventScope::Faction,
+            chance,
+            cooldown_months: 600,
+            conditions: Vec::new(),
+            effects: Vec::new(),
+            options: vec![
+                crownveil_sim::EventOption {
+                    label: "A".to_string(),
+                    effects: vec![Effect::Treasury(1)],
+                },
+                crownveil_sim::EventOption {
+                    label: "B".to_string(),
+                    effects: vec![Effect::Army(10)],
+                },
+            ],
+        };
+        CrownveilApp::with_world(World::demo(1).with_events(Vec::new(), vec![event]))
+    }
+
+    #[test]
+    fn new_decision_pauses_the_clock() {
+        let mut app = app_with_choice(1000);
+        app.paused = false;
+        app.speed = 8;
+        app.advance(SECONDS_PER_MONTH * 4.0);
+
+        assert!(app.paused);
+        assert_eq!(
+            (app.world.year, app.world.month),
+            (1, 2),
+            "parou no primeiro mês"
+        );
+        assert_eq!(app.world.pending_decisions.len(), 1);
+    }
+
+    #[test]
+    fn changing_player_is_sent_as_command() {
+        let mut app = app_with_choice(0);
+        assert_eq!(app.world.player, Some(0));
+
+        app.player = 2;
+        app.sync_player();
+        app.step_once();
+        assert_eq!(app.world.player, Some(2));
+    }
+
+    #[test]
+    fn effect_descriptions_are_readable() {
+        let app = demo_app();
+        assert_eq!(
+            describe_effect_list(
+                &app.world,
+                &[Effect::Treasury(-150), Effect::Population(-8)]
+            ),
+            "tesouro -150, população -8%"
+        );
     }
 
     #[test]

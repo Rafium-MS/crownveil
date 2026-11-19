@@ -10,8 +10,8 @@ pub mod world;
 pub use command::Command;
 pub use diplomacy::{Diplomacy, War, DEFAULT_TRUCE_MONTHS};
 pub use event::{
-    trigger_event, Condition, Effect, EventCooldown, EventDef, EventId, EventRecord, EventScope,
-    EventTarget,
+    choose_option, trigger_event, Condition, DecisionId, Effect, EventCooldown, EventDef, EventId,
+    EventOption, EventRecord, EventScope, EventTarget, PendingDecision,
 };
 pub use modifier::{ActiveModifier, ModifierDef, ModifierEffects, ModifierId};
 pub use rng::Rng;

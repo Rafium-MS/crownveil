@@ -74,11 +74,15 @@ fn print_new_events(world: &World, logged: &mut usize) {
             .map(|event| event.title.as_str())
             .unwrap_or("?");
         println!(
-            "  [{:>2}/{}] {} — {}",
+            "  [{:>2}/{}] {} — {}{}",
             record.month,
             record.year,
             title,
-            world.target_name(record.target)
+            world.target_name(record.target),
+            world
+                .choice_label(record)
+                .map(|label| format!(" → {label}"))
+                .unwrap_or_default()
         );
     }
     *logged += fresh;

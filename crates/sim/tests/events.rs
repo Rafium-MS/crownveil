@@ -47,6 +47,7 @@ fn event(
         cooldown_months: 12,
         conditions,
         effects,
+        options: Vec::new(),
     }
 }
 

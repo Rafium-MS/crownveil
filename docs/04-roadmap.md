@@ -59,7 +59,7 @@ divertido (ou pelo menos testado) headless.
 - [x] Crônica de eventos na UI, comando `events` no REPL e log na CLI
 - [x] Primeiros presságios e crises (cometa, crise de sucessão, Véu rasgado)
 - [ ] Fé/magia como recursos e modificadores
-- [ ] Eventos com escolhas do jogador
+- [x] Eventos com escolhas do jogador (decisões pendentes, IA e prazo)
 - [ ] Crises encadeadas com consequências de longo prazo
 
 ## M6 — Persistência e polimento
