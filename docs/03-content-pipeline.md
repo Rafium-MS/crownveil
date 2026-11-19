@@ -140,12 +140,40 @@ província); `LegitimacyAtLeast(n)`, `LegitimacyBelow(n)`, `TreasuryAtLeast(n)`,
 
 Efeitos: `Unrest(n)`, `Development(n)`, `Population(pct)`, `Legitimacy(n)`,
 `Treasury(n)`, `Army(n)`, `Faith(n)`, `Mana(n)`, `AddModifier("k", Some(meses))`
-(ou `None` para permanente), `RemoveModifier("k")`.
+(ou `None` para permanente), `RemoveModifier("k")`,
+`TriggerEvent("evento", meses)`.
+
+### Crises encadeadas
+
+`TriggerEvent("chave", meses)` agenda outro evento no mesmo alvo. A
+continuação ignora a `chance`, mas só acontece se as `conditions` dela ainda
+valerem — é assim que o jogador desarma uma crise. Use `chance: 0` para eventos
+que só existem como continuação. A chave pode apontar para um evento definido
+mais abaixo no arquivo.
+
+```ron
+(
+    key: "martires_da_revolta",
+    title: "Os Mártires da Revolta",
+    scope: Province,
+    chance: 0,
+    conditions: [UnrestAtLeast(40)],
+    options: [
+        (label: "Proibir as homenagens", effects: [TriggerEvent("insurreicao", 12)]),
+        (label: "Erguer um memorial", effects: [Treasury(-150), Unrest(-10)]),
+    ],
+)
+```
+
+Como a IA sempre escolhe a primeira opção, a ordem decide se ela escala a
+crise ou não. Na UI, o tooltip da opção mostra só "consequências em N meses".
+Um efeito de evento ou rito **de facção** não pode encadear evento de província.
 
 O loader rejeita chaves duplicadas, modificadores desconhecidos, condições de
 província em eventos de facção, `chance` fora de 0–1000, cooldown negativo,
 duração não positiva, `Population` abaixo de −100, eventos sem efeitos nem
-opções, eventos com uma única opção e opções sem `label`.
+opções, eventos com uma única opção, opções sem `label`, `TriggerEvent` para
+evento desconhecido, com menos de 1 mês ou de facção para província.
 
 ## Ritos
 

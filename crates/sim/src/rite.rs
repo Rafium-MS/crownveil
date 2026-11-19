@@ -122,7 +122,7 @@ pub fn perform_rite(
     caster.treasury -= def.gold_cost;
 
     for effect in &def.effects {
-        event::apply_effect(world, target, effect);
+        event::apply_effect(world, target, effect, None);
     }
 
     if def.cooldown_months > 0 {

@@ -7,6 +7,9 @@
 // options: escolhas da facção que decide (a dona da província, no escopo de
 // província). A primeira opção é a escolha da IA e a padrão se o jogador não
 // responder em 12 meses.
+// TriggerEvent("chave", meses): agenda um evento de continuação no mesmo alvo.
+// Ele ignora a chance, mas só acontece se as condições dele ainda valerem.
+// Eventos com chance 0 só acontecem encadeados.
 (
     modifiers: [
         (
@@ -113,6 +116,44 @@
             legitimacy: -1,
         ),
         (
+            key: "lei_marcial",
+            name: "Lei Marcial",
+            unrest: -15,
+            income_pct: -20,
+        ),
+        (
+            key: "autonomia",
+            name: "Autonomia Local",
+            unrest: -15,
+            income_pct: -40,
+        ),
+        (
+            key: "criaturas_do_veu",
+            name: "Criaturas do Véu",
+            unrest: 8,
+            food_pct: -15,
+        ),
+        (
+            key: "pacto_sombrio",
+            name: "Pacto Sombrio",
+            unrest: 4,
+            income_pct: 10,
+            mana: 6,
+        ),
+        (
+            key: "guerra_civil",
+            name: "Guerra Civil",
+            unrest: 10,
+            income_pct: -30,
+            legitimacy: -1,
+        ),
+        (
+            key: "coroa_partilhada",
+            name: "Coroa Partilhada",
+            unrest: -3,
+            income_pct: -10,
+        ),
+        (
             key: "era_dourada",
             name: "Era Dourada",
             unrest: -5,
@@ -137,7 +178,7 @@
             options: [
                 (
                     label: "Rezar e esperar que passe",
-                    effects: [Population(-4), Unrest(5), Faith(20)],
+                    effects: [Population(-4), Unrest(5), Faith(20), TriggerEvent("segunda_onda", 6)],
                 ),
                 (
                     label: "Fechar os portões (quarentena)",
@@ -186,6 +227,7 @@
                         Treasury(-100),
                         Legitimacy(-5),
                         AddModifier("revolta_esmagada", Some(24)),
+                        TriggerEvent("martires_da_revolta", 12),
                     ],
                 ),
                 (
@@ -229,7 +271,11 @@
             options: [
                 (
                     label: "Convocar magos para estudar a fenda",
-                    effects: [Treasury(-100), AddModifier("arcanistas", Some(60))],
+                    effects: [
+                        Treasury(-100),
+                        AddModifier("arcanistas", Some(60)),
+                        TriggerEvent("experimentos_proibidos", 24),
+                    ],
                 ),
                 (
                     label: "Selar a fenda a qualquer custo",
@@ -267,7 +313,11 @@
                 ),
                 (
                     label: "Deixar a corte decidir",
-                    effects: [Legitimacy(-5), AddModifier("corte_dividida", Some(24))],
+                    effects: [
+                        Legitimacy(-5),
+                        AddModifier("corte_dividida", Some(24)),
+                        TriggerEvent("pretendente_exilado", 18),
+                    ],
                 ),
                 (
                     label: "Arranjar um casamento entre os pretendentes",
@@ -349,6 +399,165 @@
                 (
                     label: "Agradecer e adiar",
                     effects: [Faith(-100), Legitimacy(-2)],
+                ),
+            ],
+        ),
+
+        // ---- Crises encadeadas (chance 0: só acontecem como continuação) ----
+
+        // Peste: rezar e esperar pode trazer uma segunda onda.
+        (
+            key: "segunda_onda",
+            title: "A Segunda Onda",
+            description: "Quando a peste parecia ceder, ela volta mais forte pelos bairros pobres.",
+            scope: Province,
+            chance: 0,
+            cooldown_months: 0,
+            conditions: [HasModifier("peste_cinzenta"), LacksModifier("quarentena")],
+            effects: [Population(-6), Unrest(8)],
+            options: [
+                (
+                    label: "Queimar os bairros infectados",
+                    effects: [Development(-3), RemoveModifier("peste_cinzenta")],
+                ),
+                (
+                    label: "Chamar curandeiros de todo o reino",
+                    effects: [Faith(-80), Treasury(-100), RemoveModifier("peste_cinzenta")],
+                ),
+            ],
+        ),
+
+        // Revolta: esmagar cria mártires; reprimir a memória deles leva à insurreição.
+        (
+            key: "martires_da_revolta",
+            title: "Os Mártires da Revolta",
+            description: "Velas acesas nas encruzilhadas: o povo honra os mortos da revolta esmagada.",
+            scope: Province,
+            chance: 0,
+            cooldown_months: 0,
+            conditions: [UnrestAtLeast(40)],
+            effects: [Unrest(5)],
+            options: [
+                (
+                    label: "Proibir as homenagens",
+                    effects: [Legitimacy(1), Unrest(5), TriggerEvent("insurreicao", 12)],
+                ),
+                (
+                    label: "Erguer um memorial",
+                    effects: [Treasury(-150), Unrest(-10), Faith(20)],
+                ),
+                (
+                    label: "Perdoar os sobreviventes",
+                    effects: [Legitimacy(-3), Unrest(-15)],
+                ),
+            ],
+        ),
+        (
+            key: "insurreicao",
+            title: "Insurreição",
+            description: "Não é mais uma revolta de camponeses: há armas, líderes e uma bandeira.",
+            scope: Province,
+            chance: 0,
+            cooldown_months: 0,
+            conditions: [UnrestAtLeast(55)],
+            effects: [Development(-3), Population(-5), Unrest(10)],
+            options: [
+                (
+                    label: "Enviar o exército e decretar lei marcial",
+                    effects: [Army(-150), Legitimacy(-3), AddModifier("lei_marcial", Some(36))],
+                ),
+                (
+                    label: "Conceder autonomia à província",
+                    effects: [Legitimacy(-5), AddModifier("autonomia", None)],
+                ),
+            ],
+        ),
+
+        // Véu: estudar a fenda tenta os magos; deixá-los continuar abre a porta.
+        (
+            key: "experimentos_proibidos",
+            title: "Experimentos Proibidos",
+            description: "Os arcanistas pedem permissão para atravessar a fenda com um dos seus.",
+            scope: Province,
+            chance: 0,
+            cooldown_months: 0,
+            conditions: [HasModifier("arcanistas")],
+            options: [
+                (
+                    label: "Encerrar os experimentos",
+                    effects: [RemoveModifier("arcanistas"), Faith(30)],
+                ),
+                (
+                    label: "Permitir que continuem",
+                    effects: [Mana(150), TriggerEvent("algo_atravessa", 12)],
+                ),
+            ],
+        ),
+        (
+            key: "algo_atravessa",
+            title: "Algo Atravessa o Véu",
+            description: "O arcanista voltou. Mas não voltou sozinho.",
+            scope: Province,
+            chance: 0,
+            cooldown_months: 0,
+            effects: [Population(-5), Unrest(12), AddModifier("criaturas_do_veu", Some(48))],
+            options: [
+                (
+                    label: "Caçar as criaturas",
+                    effects: [Army(-100), Treasury(-200), RemoveModifier("criaturas_do_veu")],
+                ),
+                (
+                    label: "Selar um pacto com elas",
+                    effects: [RemoveModifier("criaturas_do_veu"), AddModifier("pacto_sombrio", None)],
+                ),
+            ],
+        ),
+
+        // Sucessão: deixar a corte decidir cria um pretendente; ignorá-lo, uma guerra civil.
+        (
+            key: "pretendente_exilado",
+            title: "O Pretendente Exilado",
+            description: "Um dos pretendentes derrotados reúne apoio além das fronteiras.",
+            scope: Faction,
+            chance: 0,
+            cooldown_months: 0,
+            conditions: [LegitimacyBelow(50)],
+            options: [
+                (
+                    label: "Ignorar o pretendente",
+                    effects: [TriggerEvent("guerra_civil", 12)],
+                ),
+                (
+                    label: "Pagar-lhe um exílio dourado",
+                    effects: [Treasury(-400)],
+                ),
+                (
+                    label: "Mandar assassiná-lo",
+                    effects: [Legitimacy(-6), Faith(-50)],
+                ),
+            ],
+        ),
+        (
+            key: "guerra_civil",
+            title: "Guerra Civil",
+            description: "O pretendente cruza a fronteira e nobres descontentes se juntam a ele.",
+            scope: Faction,
+            chance: 0,
+            cooldown_months: 0,
+            conditions: [LegitimacyBelow(45)],
+            effects: [Unrest(10), Army(-150), AddModifier("guerra_civil", Some(36))],
+            options: [
+                (
+                    label: "Esmagar os rebeldes",
+                    effects: [Treasury(-300), Legitimacy(3)],
+                ),
+                (
+                    label: "Partilhar a coroa",
+                    effects: [
+                        Legitimacy(-10),
+                        RemoveModifier("guerra_civil"),
+                        AddModifier("coroa_partilhada", None),
+                    ],
                 ),
             ],
         ),

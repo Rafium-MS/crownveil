@@ -767,6 +767,7 @@ impl CrownveilApp {
                 ui.separator();
                 self.rites_panel(ui);
                 ui.separator();
+                self.looming_panel(ui);
                 self.chronicle(ui);
             });
     }
@@ -836,6 +837,40 @@ impl CrownveilApp {
             let name = self.world.rites[rite].name.clone();
             self.status = format!("Rito '{name}' enfileirado para o próximo mês.");
         }
+    }
+
+    fn looming_panel(&mut self, ui: &mut egui::Ui) {
+        let Some(player) = self.world.player else {
+            return;
+        };
+        let now = absolute_month(&self.world);
+        let looming: Vec<String> = self
+            .world
+            .looming_for(player)
+            .map(|scheduled| {
+                let origin = scheduled
+                    .source
+                    .and_then(|id| self.world.event_def(id))
+                    .map_or("um rito", |event| event.title.as_str());
+                format!(
+                    "{} — {} (em {} meses)",
+                    origin,
+                    self.world.target_name(scheduled.target),
+                    scheduled.at - now
+                )
+            })
+            .collect();
+        if looming.is_empty() {
+            return;
+        }
+
+        ui.heading("Consequências pendentes");
+        for line in looming {
+            ui.label(format!("⚠ {line}")).on_hover_text(
+                "Algo decorre desta escolha. Se a situação mudar até lá, pode não acontecer.",
+            );
+        }
+        ui.separator();
     }
 
     fn chronicle(&mut self, ui: &mut egui::Ui) {
@@ -999,6 +1034,9 @@ fn describe_effect(world: &World, effect: &Effect) -> String {
             None => format!("+ {} (permanente)", modifier_name(*modifier)),
         },
         Effect::RemoveModifier(modifier) => format!("remove {}", modifier_name(*modifier)),
+        // Deliberately vague: the player learns there will be consequences,
+        // not what they are.
+        Effect::TriggerEvent { months, .. } => format!("consequências em {months} meses"),
     }
 }
 
@@ -1151,6 +1189,21 @@ mod tests {
     fn bundled_content_includes_rites() {
         let app = CrownveilApp::new();
         assert!(!app.world.rites.is_empty());
+    }
+
+    #[test]
+    fn chained_effects_do_not_reveal_the_follow_up() {
+        let app = demo_app();
+        assert_eq!(
+            describe_effect(
+                &app.world,
+                &Effect::TriggerEvent {
+                    event: 0,
+                    months: 12
+                }
+            ),
+            "consequências em 12 meses"
+        );
     }
 
     #[test]

@@ -52,7 +52,7 @@ divertido (ou pelo menos testado) headless.
 - [x] Posições de mapa definidas no conteúdo (`map: Some((col, row))`)
 - [x] Testes de geometria/hit-testing e smoke test com screenshot
 
-## M5 — Fantasia e eventos (em andamento)
+## M5 — Fantasia e eventos (concluído)
 
 - [x] Sistema de eventos orientado a dados (`content/events.ron`)
 - [x] Modificadores temporários e permanentes em províncias e facções
@@ -60,7 +60,7 @@ divertido (ou pelo menos testado) headless.
 - [x] Primeiros presságios e crises (cometa, crise de sucessão, Véu rasgado)
 - [x] Fé/magia como recursos, modificadores e ritos (`content/rites.ron`)
 - [x] Eventos com escolhas do jogador (decisões pendentes, IA e prazo)
-- [ ] Crises encadeadas com consequências de longo prazo
+- [x] Crises encadeadas com consequências de longo prazo (`TriggerEvent`)
 
 ## M6 — Persistência e polimento
 

@@ -168,6 +168,7 @@ fn main() {
                 print_decisions(&world);
             }
             "decisions" => print_decisions(&world),
+            "crises" => print_looming(&world),
             "choose" => match (
                 parts.get(1).and_then(|value| value.parse().ok()),
                 parts.get(2).and_then(|value| value.parse::<usize>().ok()),
@@ -229,6 +230,7 @@ fn print_help() {
     println!("  explain <província>    explica o descontentamento e mostra modificadores");
     println!("  events [n]             mostra os últimos n eventos (padrão: 10)");
     println!("  decisions              lista decisões pendentes do jogador");
+    println!("  crises                 lista consequências pendentes das suas escolhas");
     println!("  rites [província]      lista ritos e se estão disponíveis");
     println!("  rite <rito> [prov]     realiza um rito (província só para ritos locais)");
     println!("  choose <dec> <opção>   escolhe uma opção (aplicada no próximo tick)");
@@ -397,6 +399,31 @@ fn print_events(world: &World, count: usize) {
         if let Some(label) = world.choice_label(record) {
             println!("      escolha: {label}");
         }
+    }
+}
+
+fn print_looming(world: &World) {
+    let Some(player) = world.player else {
+        println!("nenhuma facção está sob controle do jogador");
+        return;
+    };
+    let now = absolute_month(world);
+    let mut any = false;
+    for scheduled in world.looming_for(player) {
+        any = true;
+        let origin = scheduled
+            .source
+            .and_then(|id| world.event_def(id))
+            .map_or("um rito", |event| event.title.as_str());
+        println!(
+            "  ⚠ consequência de '{}' em {} — daqui a {} meses (pode não acontecer se a situação mudar)",
+            origin,
+            world.target_name(scheduled.target),
+            scheduled.at - now
+        );
+    }
+    if !any {
+        println!("nenhuma consequência pendente");
     }
 }
 

@@ -12,7 +12,7 @@ pub use command::Command;
 pub use diplomacy::{Diplomacy, War, DEFAULT_TRUCE_MONTHS};
 pub use event::{
     choose_option, trigger_event, Condition, DecisionId, Effect, EventCooldown, EventDef, EventId,
-    EventOption, EventRecord, EventScope, EventTarget, PendingDecision,
+    EventOption, EventRecord, EventScope, EventTarget, PendingDecision, ScheduledEvent,
 };
 pub use modifier::{ActiveModifier, ModifierDef, ModifierEffects, ModifierId};
 pub use rite::{check_rite, rite_target, RiteBlock, RiteCooldown, RiteDef, RiteId};

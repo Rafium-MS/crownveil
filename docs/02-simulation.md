@@ -22,6 +22,8 @@ consequência às decisões, não para estarem balanceadas.
 - `PendingDecision`: escolha aguardando o jogador (`World.player`), com prazo.
 - `Faction.faith` / `Faction.mana`: fé e magia (0–1000).
 - `RiteDef`: rito com escopo, custos, cooldown, condições e efeitos.
+- `ScheduledEvent`: continuação agendada por `TriggerEvent` (evento, alvo, mês
+  e evento de origem).
 
 Todas as quantias usam `i64`. Não há ponto flutuante na simulação.
 
@@ -68,7 +70,8 @@ mesmos comandos.
 10. **Modificadores**: decrementa a duração e remove os que chegaram a 0;
     descarta cooldowns de ritos vencidos.
 11. **Eventos**: primeiro resolve, com a primeira opção, as decisões cujo prazo
-    venceu. Depois, para cada evento (em ordem) e cada alvo (em ordem), se não
+    venceu. Em seguida dispara as continuações agendadas que venceram, na ordem
+    em que foram agendadas, se as condições delas ainda valerem. Depois, para cada evento (em ordem) e cada alvo (em ordem), se não
     estiver em cooldown e todas as condições valerem, rola `rng(0..999) <
     chance`; se passar, aplica os efeitos, registra cooldown e então: sem
     opções, entra no log; com opções, a IA aplica a primeira opção na hora ou,
@@ -213,6 +216,19 @@ fim do mês *T+N*.
   ou em todas as províncias da facção; `Legitimacy`, `Treasury` e `Army` agem
   na facção (dona, no escopo de província); `AddModifier`/`RemoveModifier`
   agem no próprio alvo.
+
+### Crises encadeadas
+
+`TriggerEvent { event, months }` agenda uma continuação no mesmo alvo para
+`agora + months` (mínimo 1). Se a continuação for de facção e o alvo for uma
+província, ela atinge a dona no momento do agendamento; continuação de
+província a partir de alvo de facção é descartada (o loader a rejeita).
+
+Quando vence, a continuação ignora `chance` e cooldown, mas **só dispara se as
+condições dela valerem**; caso contrário é descartada — a crise foi evitada.
+Continuações de facção sem províncias também são descartadas.
+`World::looming_for(facção)` lista o que está por vir, com o evento de origem,
+para a UI avisar sem revelar qual evento será.
 
 ### Escolhas
 

@@ -10,7 +10,7 @@ mundo. O tempo corre em tempo real, mas pode ser pausado e acelerado.
 
 ## Status
 
-Protótipo jogável (**M4**, com o **M5** em andamento): simulação
+Protótipo jogável (**M5**): simulação
 determinística em ticks mensais com economia, comida/fome, diplomacia e guerra,
 mais uma interface gráfica em `egui`/`eframe` com pausa, velocidades, painéis
 de facção/província, comandos básicos e mapa hexagonal 2D com overlays,
@@ -18,6 +18,9 @@ seleção, tooltips, zoom e pan. Eventos e modificadores orientados a dados
 (pestes, colheitas, revoltas, presságios) aparecem na Crônica da UI; vários
 deles são dilemas em que o jogador escolhe a resposta. Fé e magia são recursos
 das facções, gastos em ritos (curar a peste, conjurar chuva, selar o Véu…).
+Algumas escolhas desencadeiam crises de vários elos (mártires e insurreição,
+segunda onda da peste, guerra civil…), que podem ser evitadas mudando a situação
+antes de o próximo elo chegar.
 
 ## Requisitos
 
@@ -48,7 +51,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 No REPL, os comandos são: `status`, `provinces`, `tax`, `recruit`, `disband`,
 `war`, `peace`, `attack`, `wars`, `events`, `decisions`, `choose`, `player`,
-`rites`, `rite`, `step`, `explain`, `help` e `quit`. O REPL joga com a facção 0; `step` para
+`rites`, `rite`, `crises`, `step`, `explain`, `help` e `quit`. O REPL joga com a facção 0; `step` para
 quando surge uma decisão, e `choose <decisão> <opção>` responde. Use
 `step N` para aplicar os comandos enfileirados e avançar `N` meses.
 
@@ -59,7 +62,8 @@ zoom e troque a camada entre **Dono**, **Descontentamento** e **População**.
 Quando um evento exige uma escolha da sua facção, o jogo pausa e abre uma
 janela de decisão; passe o mouse sobre as opções para ver os efeitos. A seção
 **Ritos** (painel da direita) lista os ritos com custo; ritos locais agem na
-província selecionada.
+província selecionada. **Consequências pendentes** avisa quando uma escolha sua
+ainda vai cobrar seu preço.
 
 ## Estrutura do workspace
 

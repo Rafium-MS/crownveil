@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::command::Command;
 use crate::diplomacy::Diplomacy;
-use crate::event::{EventCooldown, EventDef, EventId, EventRecord, EventTarget, PendingDecision};
+use crate::event::{
+    EventCooldown, EventDef, EventId, EventRecord, EventTarget, PendingDecision, ScheduledEvent,
+};
 use crate::modifier::{ActiveModifier, ModifierDef, ModifierId};
 use crate::rite::{RiteCooldown, RiteDef, RiteId};
 use crate::rng::Rng;
@@ -157,6 +159,8 @@ pub struct World {
     #[serde(default)]
     pub next_decision_id: u64,
     #[serde(default)]
+    pub scheduled_events: Vec<ScheduledEvent>,
+    #[serde(default)]
     pub rites: Vec<RiteDef>,
     #[serde(default)]
     pub rite_cooldowns: Vec<RiteCooldown>,
@@ -181,6 +185,7 @@ impl World {
             player: None,
             pending_decisions: Vec::new(),
             next_decision_id: 0,
+            scheduled_events: Vec::new(),
             rites: Vec::new(),
             rite_cooldowns: Vec::new(),
         }
@@ -204,6 +209,18 @@ impl World {
     pub fn with_player(mut self, player: Option<FactionId>) -> Self {
         self.player = player.filter(|&id| id < self.factions.len());
         self
+    }
+
+    /// Follow-ups that will hit `faction` or one of its provinces.
+    pub fn looming_for(&self, faction: FactionId) -> impl Iterator<Item = &ScheduledEvent> {
+        self.scheduled_events
+            .iter()
+            .filter(move |scheduled| match scheduled.target {
+                EventTarget::Province(id) => {
+                    self.provinces.get(id).map(|p| p.owner) == Some(faction)
+                }
+                EventTarget::Faction(id) => id == faction,
+            })
     }
 
     pub fn decisions_for(&self, faction: FactionId) -> impl Iterator<Item = &PendingDecision> {

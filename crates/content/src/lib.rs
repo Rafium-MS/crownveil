@@ -208,6 +208,8 @@ pub enum EffectData {
     Mana(i64),
     AddModifier(String, Option<i64>),
     RemoveModifier(String),
+    /// `TriggerEvent("chave", meses)`: schedules a follow-up event.
+    TriggerEvent(String, i64),
 }
 
 #[derive(Debug)]
@@ -216,6 +218,7 @@ pub enum LoadError {
     UnknownFaction { province: String, faction: String },
     DuplicateKey { kind: &'static str, key: String },
     UnknownModifier { event: String, modifier: String },
+    UnknownEvent { event: String, target: String },
     ProvinceConditionInFactionEvent { event: String },
     InvalidValue { event: String, reason: &'static str },
 }
@@ -234,6 +237,10 @@ impl fmt::Display for LoadError {
             LoadError::UnknownModifier { event, modifier } => write!(
                 formatter,
                 "'{event}' referencia modificador desconhecido '{modifier}'"
+            ),
+            LoadError::UnknownEvent { event, target } => write!(
+                formatter,
+                "'{event}' encadeia evento desconhecido '{target}'"
             ),
             LoadError::ProvinceConditionInFactionEvent { event } => write!(
                 formatter,
@@ -334,24 +341,34 @@ pub fn load_events(source: &str, world: World) -> Result<World, LoadError> {
         });
     }
 
-    let mut event_keys = BTreeMap::new();
-    let mut events = Vec::with_capacity(data.events.len());
-    for event in data.events {
-        if event_keys.insert(event.key.clone(), ()).is_some() {
+    // Keys first, so an event can chain into one defined further down.
+    let mut event_ids = EventIds::new();
+    for (id, event) in data.events.iter().enumerate() {
+        if event_ids
+            .insert(event.key.clone(), (id, event.scope))
+            .is_some()
+        {
             return Err(LoadError::DuplicateKey {
                 kind: "evento",
-                key: event.key,
+                key: event.key.clone(),
             });
         }
-        events.push(convert_event(event, &modifier_ids)?);
+    }
+
+    let mut events = Vec::with_capacity(data.events.len());
+    for event in data.events {
+        events.push(convert_event(event, &modifier_ids, &event_ids)?);
     }
 
     Ok(world.with_events(modifiers, events))
 }
 
+type EventIds = BTreeMap<String, (usize, EventScope)>;
+
 fn convert_event(
     event: EventData,
     modifier_ids: &BTreeMap<String, usize>,
+    event_ids: &EventIds,
 ) -> Result<EventDef, LoadError> {
     let invalid = |reason| LoadError::InvalidValue {
         event: event.key.clone(),
@@ -390,12 +407,24 @@ fn convert_event(
     };
 
     let conditions = convert_conditions(&event.conditions, event.scope, &event.key, &modifier)?;
-    let effects = convert_effects(&event.effects, &event.key, &modifier)?;
+    let effects = convert_effects(
+        &event.effects,
+        &event.key,
+        event.scope,
+        &modifier,
+        event_ids,
+    )?;
     let mut options = Vec::with_capacity(event.options.len());
     for option in &event.options {
         options.push(EventOption {
             label: option.label.clone(),
-            effects: convert_effects(&option.effects, &event.key, &modifier)?,
+            effects: convert_effects(
+                &option.effects,
+                &event.key,
+                event.scope,
+                &modifier,
+                event_ids,
+            )?,
         });
     }
 
@@ -477,6 +506,12 @@ pub fn load_rites(source: &str, world: World) -> Result<World, LoadError> {
         .enumerate()
         .map(|(id, def)| (def.key.clone(), id))
         .collect();
+    let event_ids: EventIds = world
+        .events
+        .iter()
+        .enumerate()
+        .map(|(id, def)| (def.key.clone(), (id, def.scope)))
+        .collect();
 
     let mut keys = BTreeMap::new();
     let mut rites = Vec::with_capacity(data.rites.len());
@@ -512,7 +547,7 @@ pub fn load_rites(source: &str, world: World) -> Result<World, LoadError> {
         };
         rites.push(RiteDef {
             conditions: convert_conditions(&rite.conditions, rite.scope, &rite.key, &modifier)?,
-            effects: convert_effects(&rite.effects, &rite.key, &modifier)?,
+            effects: convert_effects(&rite.effects, &rite.key, rite.scope, &modifier, &event_ids)?,
             key: rite.key.clone(),
             name: rite.name.clone(),
             description: rite.description.clone(),
@@ -530,7 +565,9 @@ pub fn load_rites(source: &str, world: World) -> Result<World, LoadError> {
 fn convert_effects(
     effects: &[EffectData],
     event: &str,
+    scope: EventScope,
     modifier: &impl Fn(&String) -> Result<usize, LoadError>,
+    event_ids: &EventIds,
 ) -> Result<Vec<Effect>, LoadError> {
     let invalid = |reason| LoadError::InvalidValue {
         event: event.to_string(),
@@ -563,6 +600,25 @@ fn convert_effects(
                 }
             }
             EffectData::RemoveModifier(key) => Effect::RemoveModifier(modifier(key)?),
+            EffectData::TriggerEvent(key, months) => {
+                let &(id, follow_up_scope) =
+                    event_ids.get(key).ok_or_else(|| LoadError::UnknownEvent {
+                        event: event.to_string(),
+                        target: key.clone(),
+                    })?;
+                if *months < 1 {
+                    return Err(invalid("TriggerEvent precisa de ao menos 1 mês"));
+                }
+                if scope == EventScope::Faction && follow_up_scope == EventScope::Province {
+                    return Err(invalid(
+                        "efeito de facção não pode encadear evento de província",
+                    ));
+                }
+                Effect::TriggerEvent {
+                    event: id,
+                    months: *months,
+                }
+            }
         });
     }
     Ok(converted)
@@ -716,6 +772,79 @@ mod tests {
         assert!(matches!(
             events_world(source),
             Err(LoadError::UnknownModifier { .. })
+        ));
+    }
+
+    #[test]
+    fn bundled_events_include_chains() {
+        let world = events_world(EVENTS).unwrap();
+        let chains = world
+            .events
+            .iter()
+            .flat_map(|event| {
+                event
+                    .effects
+                    .iter()
+                    .chain(event.options.iter().flat_map(|o| o.effects.iter()))
+            })
+            .filter(|effect| matches!(effect, Effect::TriggerEvent { .. }))
+            .count();
+        assert!(chains >= 4, "esperava crises encadeadas, achei {chains}");
+    }
+
+    #[test]
+    fn chain_can_reference_later_event() {
+        let source = r#"(
+            events: [
+                (key: "a", title: "A", scope: Province, chance: 1, effects: [TriggerEvent("b", 6)]),
+                (key: "b", title: "B", scope: Faction, chance: 0, effects: [Treasury(1)]),
+            ],
+        )"#;
+        let world = events_world(source).unwrap();
+        assert_eq!(
+            world.events[0].effects,
+            vec![Effect::TriggerEvent {
+                event: 1,
+                months: 6
+            }]
+        );
+    }
+
+    #[test]
+    fn chain_to_unknown_event_is_rejected() {
+        let source = r#"(
+            events: [(key: "a", title: "A", scope: Province, chance: 1,
+                      effects: [TriggerEvent("nada", 6)])],
+        )"#;
+        assert!(matches!(
+            events_world(source),
+            Err(LoadError::UnknownEvent { .. })
+        ));
+    }
+
+    #[test]
+    fn faction_event_cannot_chain_into_province_event() {
+        let source = r#"(
+            events: [
+                (key: "a", title: "A", scope: Faction, chance: 1, effects: [TriggerEvent("b", 6)]),
+                (key: "b", title: "B", scope: Province, chance: 0, effects: [Treasury(1)]),
+            ],
+        )"#;
+        assert!(matches!(
+            events_world(source),
+            Err(LoadError::InvalidValue { .. })
+        ));
+    }
+
+    #[test]
+    fn chain_needs_positive_delay() {
+        let source = r#"(
+            events: [(key: "a", title: "A", scope: Province, chance: 1,
+                      effects: [TriggerEvent("a", 0)])],
+        )"#;
+        assert!(matches!(
+            events_world(source),
+            Err(LoadError::InvalidValue { .. })
         ));
     }
 

@@ -80,6 +80,13 @@ pub enum Effect {
         months: Option<i64>,
     },
     RemoveModifier(ModifierId),
+    /// Schedules a follow-up event on the same target after `months` (at least
+    /// 1). A faction-scope follow-up of a province event hits the owner. The
+    /// follow-up skips the chance roll but only fires if its conditions hold.
+    TriggerEvent {
+        event: EventId,
+        months: i64,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -133,6 +140,17 @@ pub struct EventRecord {
     pub choice: Option<usize>,
 }
 
+/// A follow-up waiting to fire. `source` is the event that scheduled it
+/// (`None` for rites), so the UI can say where a looming crisis came from
+/// without revealing what it is.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScheduledEvent {
+    pub event: EventId,
+    pub target: EventTarget,
+    pub at: i64,
+    pub source: Option<EventId>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EventCooldown {
     pub event: EventId,
@@ -162,6 +180,7 @@ pub fn fire_events(world: &mut World) {
         .event_cooldowns
         .retain(|cooldown| cooldown.until > now);
     expire_decisions(world, now);
+    fire_scheduled(world, now);
 
     for event_id in 0..world.events.len() {
         let targets: Vec<EventTarget> = match world.events[event_id].scope {
@@ -206,7 +225,7 @@ pub fn trigger_event(world: &mut World, event_id: EventId, target: EventTarget) 
     let has_options = !event.options.is_empty();
 
     for effect in &effects {
-        apply_effect(world, target, effect);
+        apply_effect(world, target, effect, Some(event_id));
     }
 
     let now = absolute_month(world);
@@ -291,7 +310,7 @@ fn resolve_option(world: &mut World, event_id: EventId, target: EventTarget, opt
         return;
     };
     for effect in &effects {
-        apply_effect(world, target, effect);
+        apply_effect(world, target, effect, Some(event_id));
     }
     log_event(world, event_id, target, Some(option));
 }
@@ -379,7 +398,65 @@ fn affected_provinces(world: &World, target: EventTarget) -> Vec<ProvinceId> {
     }
 }
 
-pub(crate) fn apply_effect(world: &mut World, target: EventTarget, effect: &Effect) {
+/// Fires due follow-ups in scheduling order. Ones whose conditions no longer
+/// hold (or whose faction is gone) are dropped: the crisis was averted.
+fn fire_scheduled(world: &mut World, now: i64) {
+    let (due, later): (Vec<_>, Vec<_>) = std::mem::take(&mut world.scheduled_events)
+        .into_iter()
+        .partition(|scheduled| scheduled.at <= now);
+    world.scheduled_events = later;
+
+    for scheduled in due {
+        let Some(event) = world.events.get(scheduled.event) else {
+            continue;
+        };
+        if let EventTarget::Faction(faction) = scheduled.target {
+            if world.province_count(faction) == 0 {
+                continue;
+            }
+        }
+        if event
+            .conditions
+            .iter()
+            .all(|condition| condition_holds(world, scheduled.target, condition))
+        {
+            trigger_event(world, scheduled.event, scheduled.target);
+        }
+    }
+}
+
+fn schedule_event(
+    world: &mut World,
+    target: EventTarget,
+    event: EventId,
+    months: i64,
+    source: Option<EventId>,
+) {
+    let Some(scope) = world.events.get(event).map(|def| def.scope) else {
+        return;
+    };
+    let target = match (scope, target) {
+        (EventScope::Faction, EventTarget::Province(_)) => match target_faction(world, target) {
+            Some(owner) => EventTarget::Faction(owner),
+            None => return,
+        },
+        (EventScope::Province, EventTarget::Faction(_)) => return,
+        _ => target,
+    };
+    world.scheduled_events.push(ScheduledEvent {
+        event,
+        target,
+        at: absolute_month(world) + months.max(1),
+        source,
+    });
+}
+
+pub(crate) fn apply_effect(
+    world: &mut World,
+    target: EventTarget,
+    effect: &Effect,
+    source: Option<EventId>,
+) {
     match effect {
         Effect::Unrest(delta) => {
             for id in affected_provinces(world, target) {
@@ -460,6 +537,9 @@ pub(crate) fn apply_effect(world: &mut World, target: EventTarget, effect: &Effe
                 }
             }
         },
+        Effect::TriggerEvent { event, months } => {
+            schedule_event(world, target, *event, *months, source);
+        }
     }
 }
 

@@ -153,3 +153,22 @@ indisponibilidade; o texto em português fica em `content::rite_block_text`.
 desenvolvidos com mais magia) e o jogador tem motivo para gastar. Ritos novos
 não exigem código. A IA ainda não realiza ritos; quando houver IA de facção, ela
 usa os mesmos comandos.
+
+## ADR-0013 — Crises encadeadas por agendamento condicionado
+
+**Contexto:** o M5 pede crises com consequências de longo prazo. Escrever cada
+crise como código, ou como uma máquina de estados especial, iria contra
+"dados antes de código".
+
+**Decisão:** um único efeito, `TriggerEvent(evento, meses)`, agenda uma
+continuação no mesmo alvo (`World.scheduled_events`). Ao vencer, ela ignora a
+chance, mas precisa que as próprias condições ainda valham; se não valerem, é
+descartada. A continuação de facção a partir de província vai para a dona. Cada
+agendamento guarda o evento de origem, para a UI avisar ("consequência de X em
+N meses") sem revelar o desfecho.
+
+**Consequências:** crises de vários elos ficam inteiramente em RON, com
+ramificações pelas opções; o jogador pode evitar um elo mudando o estado do
+jogo (baixar descontentamento, recuperar legitimidade). Ciclos são possíveis,
+mas avançam no máximo um elo por mês. A ordem das opções define o
+comportamento da IA, então o autor precisa escolher se a IA escala cada crise.
