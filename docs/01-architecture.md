@@ -102,7 +102,9 @@ Próximos passos de apresentação:
 crates/
   sim/src/        lib.rs, world.rs, tick.rs, rng.rs, rules.rs, command.rs,
                   diplomacy.rs, event.rs, modifier.rs, rite.rs
-  content/src/    lib.rs (loader RON), save.rs (saves versionados)
+  content/src/    lib.rs (loader RON), save.rs (saves versionados),
+                  save/doc.rs (árvore RON sem perdas), save/migrations.rs
+  content/tests/  fixtures/save_v<N>.ron (saves congelados por versão)
   cli/src/        main.rs (runner headless), bin/repl.rs
   client/src/     main.rs, app.rs (UI egui/eframe)
 content/          world.ron, events.ron, rites.ron

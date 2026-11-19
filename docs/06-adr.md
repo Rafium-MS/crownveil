@@ -189,3 +189,24 @@ mesmo que o conteúdo embutido mude; o custo é tamanho (dezenas de KB) e
 duplicação das definições em cada save. Mudanças no formato de `World` que não
 sejam aditivas com `#[serde(default)]` exigem subir `SAVE_FORMAT_VERSION` e
 escrever a migração correspondente.
+
+## ADR-0015 — Migração de saves sobre árvore RON própria e saves congelados
+
+**Contexto:** saves antigos precisam continuar abrindo quando o formato de
+`World` mudar. O caminho usual seria migrar sobre `ron::Value`, mas ele perde
+os nomes das variantes de enum (`Province(3)` vira `[3]`), o que corromperia
+saves silenciosamente. Manter cópias tipadas de cada versão antiga do `World`
+seria caro demais.
+
+**Decisão:** `content::save::doc` é um leitor pequeno de RON que produz uma
+árvore sem perdas (literais mantidos como texto, nomes de structs e variantes
+preservados) e a reescreve em RON. Migrações são funções `Node -> Node` de uma
+versão para a seguinte, aplicadas em cadeia antes da leitura tipada. Cada
+versão publicada tem um save congelado em `crates/content/tests/fixtures/`, e
+um teste garante que todos continuam abrindo e simulando.
+
+**Consequências:** migrações são escritas como edições estruturais (renomear,
+inserir, remover campos), sem duplicar tipos; o leitor próprio precisa
+acompanhar a sintaxe RON que o `ron` gera (testado com saves reais). Quebrar
+saves sem migração passa a falhar no `cargo test`. Por ora a cadeia está
+vazia: o formato continua na versão 1.

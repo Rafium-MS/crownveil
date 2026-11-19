@@ -232,6 +232,27 @@ Saves são RON gerados por `content::save::save_world` e lidos por `load_save`:
 - Carregar e continuar produz exatamente o mesmo resultado que não ter salvo
   (há teste para isso).
 
+### Migrações
+
+Saves de versão antiga passam por uma cadeia de migrações antes da leitura
+tipada: `save::doc` lê o RON numa árvore que **preserva nomes de variantes**
+(`ron::Value` perde `Province(3)` → `[3]`), cada `Migration { from: n }` leva
+da versão *n* para *n+1* editando essa árvore, e o resultado é lido com os
+tipos atuais.
+
+Quando mudar o formato de forma não aditiva:
+
+1. Suba `SAVE_FORMAT_VERSION` em `crates/content/src/save.rs`.
+2. Adicione a migração em `crates/content/src/save/migrations.rs`, usando os
+   auxiliares de `Node` (`rename_field`, `set_field`, `remove_field`,
+   `for_each_in_world_list`…).
+3. Gere um save da versão nova em `crates/content/tests/fixtures/save_v<N>.ron`
+   (por exemplo, com `save` no REPL) e **não altere os antigos**.
+
+O teste `every_released_save_version_still_loads` carrega todas as fixtures de
+1 até a versão atual e avança 2 anos; se uma mudança quebrar saves antigos sem
+migração, ele falha. Campos novos com `#[serde(default)]` não exigem nada disso.
+
 O REPL salva em `crownveil.save.ron` (ou no arquivo informado); a UI usa
 `$XDG_DATA_HOME/crownveil/saves/quicksave.save.ron` (padrão
 `~/.local/share/...`).

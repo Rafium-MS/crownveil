@@ -54,6 +54,10 @@ sim  <-  content  <-  cli
 - Novo comando/report: `crates/cli/src/main.rs`.
 - Mudança de UI: `crates/client/src/app.rs` (estado/relógio) e `main.rs`
   (janela). Regra de jogo continua em `sim`.
+- Mudança em tipos salvos (`World` e o que ele contém): se não couber em um
+  campo novo com `#[serde(default)]`, suba `SAVE_FORMAT_VERSION`, escreva a
+  migração em `crates/content/src/save/migrations.rs` e adicione
+  `crates/content/tests/fixtures/save_v<N>.ron`. Nunca altere fixtures antigas.
 - Decisão de arquitetura relevante: registre em `docs/06-adr.md`.
 - Mudança de escopo/visão: atualize `docs/00-vision.md` e `docs/04-roadmap.md`.
 

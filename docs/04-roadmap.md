@@ -65,7 +65,7 @@ divertido (ou pelo menos testado) headless.
 ## M6 — Persistência e polimento (em andamento)
 
 - [x] Save/load versionado (`content::save`, REPL `save`/`load`, UI F5/F9)
-- [ ] Migração de saves
+- [x] Migração de saves (cadeia em `save/migrations.rs` + saves congelados por versão)
 - [ ] Balanceamento assistido por simulação em lote
 - [ ] Acessibilidade, atalhos e configurações
 - [ ] Builds de release para Linux (e depois outras plataformas)
