@@ -17,7 +17,9 @@ client   -> sim, content, eframe/egui
 ```
 
 - `sim`: tipos do mundo e regras. Sem I/O, sem UI, sem dependências pesadas.
-- `content`: desserializa arquivos RON e monta um `World`.
+- `content`: desserializa arquivos RON e monta um `World`; também grava e lê
+  saves versionados (`content::save`). É a fronteira de dados e serialização;
+  `sim` continua sem I/O.
 - `cli`: roda a simulação headless e imprime relatórios.
 - `client`: cliente gráfico em `egui`/`eframe` (M3). Lê o `World` e emite
   comandos; não contém regra de jogo.
@@ -98,10 +100,11 @@ Próximos passos de apresentação:
 
 ```
 crates/
-  sim/src/        lib.rs, world.rs, tick.rs, rng.rs
-  content/src/    lib.rs (loader RON)
-  cli/src/        main.rs (runner headless)
+  sim/src/        lib.rs, world.rs, tick.rs, rng.rs, rules.rs, command.rs,
+                  diplomacy.rs, event.rs, modifier.rs, rite.rs
+  content/src/    lib.rs (loader RON), save.rs (saves versionados)
+  cli/src/        main.rs (runner headless), bin/repl.rs
   client/src/     main.rs, app.rs (UI egui/eframe)
-content/          world.ron
+content/          world.ron, events.ron, rites.ron
 docs/             documentação do projeto
 ```

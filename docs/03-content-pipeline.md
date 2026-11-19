@@ -209,6 +209,33 @@ referenciam modificadores pela chave.
 
 Modificadores também aceitam `faith` e `mana` (por mês).
 
+## Saves
+
+Saves são RON gerados por `content::save::save_world` e lidos por `load_save`:
+
+```ron
+(
+    format_version: 1,
+    game_version: "0.1.0",
+    world: ( ... ),   // o World inteiro, incluindo definições de eventos e ritos
+)
+```
+
+- O `World` vai inteiro: estado, fila de comandos, decisões pendentes, crises
+  agendadas, RNG e **as definições** de modificadores, eventos e ritos. Mudar
+  `content/*.ron` depois não altera partidas salvas; o conteúdo novo vale para
+  jogos novos.
+- `load_save` lê primeiro só `format_version`: versão atual carrega; versão
+  maior é recusada (`NewerVersion`); versões antigas precisarão de migração.
+- `write_save_file` grava em `<arquivo>.tmp` e renomeia, para nunca deixar um
+  save pela metade no lugar do anterior.
+- Carregar e continuar produz exatamente o mesmo resultado que não ter salvo
+  (há teste para isso).
+
+O REPL salva em `crownveil.save.ron` (ou no arquivo informado); a UI usa
+`$XDG_DATA_HOME/crownveil/saves/quicksave.save.ron` (padrão
+`~/.local/share/...`).
+
 ### Diplomacia
 
 Hoje as relações entre facções começam em 0 e não há guerras iniciais; guerras

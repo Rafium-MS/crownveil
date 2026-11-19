@@ -1,5 +1,8 @@
 use std::io::{self, BufRead, Write};
 
+use std::path::Path;
+
+use crownveil_content::save::{read_save_file, write_save_file};
 use crownveil_content::{load_events, load_rites, load_world, rite_block_text};
 use crownveil_sim::event::absolute_month;
 use crownveil_sim::{
@@ -11,6 +14,7 @@ const EVENTS_SOURCE: &str = include_str!("../../../../content/events.ron");
 const RITES_SOURCE: &str = include_str!("../../../../content/rites.ron");
 const DEFAULT_EVENT_COUNT: usize = 10;
 const DEFAULT_PLAYER: FactionId = 0;
+const DEFAULT_SAVE: &str = "crownveil.save.ron";
 
 fn main() {
     let seed = std::env::args()
@@ -167,6 +171,25 @@ fn main() {
                 print_status(&world);
                 print_decisions(&world);
             }
+            "save" => {
+                let path = Path::new(parts.get(1).copied().unwrap_or(DEFAULT_SAVE));
+                match write_save_file(path, &world) {
+                    Ok(()) => println!("jogo salvo em {}", path.display()),
+                    Err(error) => println!("não foi possível salvar: {error}"),
+                }
+            }
+            "load" => {
+                let path = Path::new(parts.get(1).copied().unwrap_or(DEFAULT_SAVE));
+                match read_save_file(path) {
+                    Ok(loaded) => {
+                        world = loaded;
+                        println!("jogo carregado de {}", path.display());
+                        print_status(&world);
+                        print_decisions(&world);
+                    }
+                    Err(error) => println!("não foi possível carregar: {error}"),
+                }
+            }
             "decisions" => print_decisions(&world),
             "crises" => print_looming(&world),
             "choose" => match (
@@ -235,6 +258,8 @@ fn print_help() {
     println!("  rite <rito> [prov]     realiza um rito (província só para ritos locais)");
     println!("  choose <dec> <opção>   escolhe uma opção (aplicada no próximo tick)");
     println!("  player [facção|none]   mostra ou troca a facção do jogador");
+    println!("  save [arquivo]         salva o jogo (padrão: {DEFAULT_SAVE})");
+    println!("  load [arquivo]         carrega um jogo salvo");
     println!("  help                   mostra esta ajuda");
     println!("  quit                   sai");
 }

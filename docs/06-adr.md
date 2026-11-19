@@ -172,3 +172,20 @@ ramificações pelas opções; o jogador pode evitar um elo mudando o estado do
 jogo (baixar descontentamento, recuperar legitimidade). Ciclos são possíveis,
 mas avançam no máximo um elo por mês. A ordem das opções define o
 comportamento da IA, então o autor precisa escolher se a IA escala cada crise.
+
+## ADR-0014 — Saves versionados em RON com o mundo completo
+
+**Contexto:** o M6 pede save/load. O `World` já é serializável e determinístico;
+falta definir formato, versão e o que entra no arquivo.
+
+**Decisão:** o save é um RON `(format_version, game_version, world)` com o
+`World` completo, incluindo as definições de conteúdo. A serialização mora em
+`content::save` (que já depende de `ron`), mantendo `sim` sem I/O. O loader lê
+primeiro só a versão: atual carrega, maior é recusada, menor fica para
+migrações explícitas. A escrita é atômica (arquivo temporário + `rename`).
+
+**Consequências:** saves são legíveis e depuráveis à mão, e continuam válidos
+mesmo que o conteúdo embutido mude; o custo é tamanho (dezenas de KB) e
+duplicação das definições em cada save. Mudanças no formato de `World` que não
+sejam aditivas com `#[serde(default)]` exigem subir `SAVE_FORMAT_VERSION` e
+escrever a migração correspondente.

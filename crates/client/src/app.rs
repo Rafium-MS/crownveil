@@ -2,6 +2,9 @@ use crownveil_content::{
     load_events, load_rites, load_world_with_map, rite_block_text, MapLayout, MapPosition,
 };
 use std::collections::BTreeSet;
+use std::path::PathBuf;
+
+use crownveil_content::save::{read_save_file, write_save_file};
 
 use crownveil_sim::event::absolute_month;
 use crownveil_sim::{
@@ -14,6 +17,7 @@ const WORLD_SOURCE: &str = include_str!("../../../content/world.ron");
 const EVENTS_SOURCE: &str = include_str!("../../../content/events.ron");
 const RITES_SOURCE: &str = include_str!("../../../content/rites.ron");
 const CHRONICLE_ENTRIES: usize = 12;
+const QUICKSAVE_FILE: &str = "quicksave.save.ron";
 const SECONDS_PER_MONTH: f64 = 0.5;
 const MAX_MONTHS_PER_FRAME: u32 = 24;
 const HEX_RADIUS: f32 = 50.0;
@@ -254,6 +258,64 @@ impl CrownveilApp {
         new_decision
     }
 
+    fn quicksave(&mut self) {
+        let Some(path) = quicksave_path() else {
+            self.status = "Não foi possível achar a pasta de saves ($HOME).".to_string();
+            return;
+        };
+        self.status = match write_save_file(&path, &self.world) {
+            Ok(()) => format!("Jogo salvo em {}", path.display()),
+            Err(error) => format!("Falha ao salvar: {error}"),
+        };
+    }
+
+    fn quickload(&mut self) {
+        let Some(path) = quicksave_path() else {
+            self.status = "Não foi possível achar a pasta de saves ($HOME).".to_string();
+            return;
+        };
+        match read_save_file(&path) {
+            Ok(world) => {
+                self.replace_world(world);
+                self.status = format!(
+                    "Jogo carregado (ano {}, mês {}). Pausado.",
+                    self.world.year, self.world.month
+                );
+            }
+            Err(error) => self.status = format!("Falha ao carregar: {error}"),
+        }
+    }
+
+    fn replace_world(&mut self, world: World) {
+        if self.map_layout.len() != world.provinces.len() {
+            self.map_layout = MapLayout::grid(world.provinces.len());
+            self.map_view.fit_requested = true;
+        }
+        self.player = world.player.unwrap_or(0);
+        self.requested_player = self.player;
+        self.world = world.with_player(Some(self.player));
+        self.war_target = if self.world.factions.len() > 1 { 1 } else { 0 };
+        self.selected_province = None;
+        self.answered.clear();
+        self.paused = true;
+        self.accumulator = 0.0;
+    }
+
+    fn handle_shortcuts(&mut self, ctx: &egui::Context) {
+        let (save, load) = ctx.input(|input| {
+            (
+                input.key_pressed(egui::Key::F5),
+                input.key_pressed(egui::Key::F9),
+            )
+        });
+        if save {
+            self.quicksave();
+        }
+        if load {
+            self.quickload();
+        }
+    }
+
     fn sync_player(&mut self) {
         if self.player != self.requested_player {
             self.world.queue_command(Command::SetPlayer {
@@ -362,6 +424,21 @@ impl CrownveilApp {
                 }
                 if ui.button("+1 mês").clicked() {
                     self.step_once();
+                }
+                ui.separator();
+                if ui
+                    .button("Salvar")
+                    .on_hover_text("Salvamento rápido (F5)")
+                    .clicked()
+                {
+                    self.quicksave();
+                }
+                if ui
+                    .button("Carregar")
+                    .on_hover_text("Carrega o salvamento rápido (F9)")
+                    .clicked()
+                {
+                    self.quickload();
                 }
 
                 for speed in [1, 2, 4, 8] {
@@ -941,6 +1018,7 @@ impl CrownveilApp {
 impl eframe::App for CrownveilApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let delta_seconds = ctx.input(|input| input.stable_dt) as f64;
+        self.handle_shortcuts(ctx);
         self.sync_player();
         self.advance(delta_seconds);
 
@@ -987,6 +1065,21 @@ fn describe_effects(active: &ActiveModifier) -> String {
     .map(|(value, label, suffix)| format!("{label} {value:+}{suffix}"))
     .collect();
     parts.join(", ")
+}
+
+/// `$XDG_DATA_HOME/crownveil/saves`, falling back to `~/.local/share`.
+fn saves_dir() -> Option<PathBuf> {
+    let base = std::env::var_os("XDG_DATA_HOME")
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute())
+        .or_else(|| {
+            std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/share"))
+        })?;
+    Some(base.join("crownveil").join("saves"))
+}
+
+fn quicksave_path() -> Option<PathBuf> {
+    saves_dir().map(|dir| dir.join(QUICKSAVE_FILE))
 }
 
 fn describe_cost(faith: i64, mana: i64, gold: i64) -> String {
@@ -1204,6 +1297,31 @@ mod tests {
             ),
             "consequências em 12 meses"
         );
+    }
+
+    #[test]
+    fn replacing_world_resets_ui_state() {
+        let mut app = app_with_choice(1000);
+        app.step_once();
+        app.selected_province = Some(3);
+        app.paused = false;
+
+        let mut saved = World::demo(2).with_player(Some(2));
+        saved.tick_month();
+        app.replace_world(saved.clone());
+
+        assert_eq!(app.world, saved);
+        assert_eq!(app.player, 2);
+        assert!(app.paused);
+        assert_eq!(app.selected_province, None);
+        assert!(app.answered.is_empty());
+    }
+
+    #[test]
+    fn saves_live_under_the_user_data_dir() {
+        if let Some(dir) = saves_dir() {
+            assert!(dir.ends_with("crownveil/saves"));
+        }
     }
 
     #[test]

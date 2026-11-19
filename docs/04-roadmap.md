@@ -62,9 +62,9 @@ divertido (ou pelo menos testado) headless.
 - [x] Eventos com escolhas do jogador (decisões pendentes, IA e prazo)
 - [x] Crises encadeadas com consequências de longo prazo (`TriggerEvent`)
 
-## M6 — Persistência e polimento
+## M6 — Persistência e polimento (em andamento)
 
-- [ ] Save/load versionado
+- [x] Save/load versionado (`content::save`, REPL `save`/`load`, UI F5/F9)
 - [ ] Migração de saves
 - [ ] Balanceamento assistido por simulação em lote
 - [ ] Acessibilidade, atalhos e configurações

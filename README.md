@@ -51,7 +51,8 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 No REPL, os comandos são: `status`, `provinces`, `tax`, `recruit`, `disband`,
 `war`, `peace`, `attack`, `wars`, `events`, `decisions`, `choose`, `player`,
-`rites`, `rite`, `crises`, `step`, `explain`, `help` e `quit`. O REPL joga com a facção 0; `step` para
+`rites`, `rite`, `crises`, `save`, `load`, `step`, `explain`, `help` e
+`quit`. O REPL joga com a facção 0; `step` para
 quando surge uma decisão, e `choose <decisão> <opção>` responde. Use
 `step N` para aplicar os comandos enfileirados e avançar `N` meses.
 
@@ -63,7 +64,8 @@ Quando um evento exige uma escolha da sua facção, o jogo pausa e abre uma
 janela de decisão; passe o mouse sobre as opções para ver os efeitos. A seção
 **Ritos** (painel da direita) lista os ritos com custo; ritos locais agem na
 província selecionada. **Consequências pendentes** avisa quando uma escolha sua
-ainda vai cobrar seu preço.
+ainda vai cobrar seu preço. **Salvar**/**Carregar** (ou F5/F9) usam um
+salvamento rápido em `~/.local/share/crownveil/saves/`.
 
 ## Estrutura do workspace
 
